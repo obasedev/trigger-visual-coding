@@ -1,0 +1,405 @@
+/* 뷰어 페이지 전체 스타일 - 다크모드 통일 */
+.viewer-page {
+  width: 100vw;
+  height: 100vh;
+  background: #1a1a1a;
+  color: #ffffff;
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 헤더 영역 */
+.viewer-header {
+  background: #252525;
+  border-bottom: 1px solid #333333;
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  z-index: 100;
+}
+
+.viewer-header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.viewer-back-button {
+  padding: 8px 16px;
+  background: #2a2a2a;
+  color: #ffffff;
+  border: 1px solid #404040;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.viewer-back-button:hover {
+  background: #333333;
+  border-color: #505050;
+}
+
+.viewer-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 18px;
+  font-weight: 600;
+  color: #64b5f6;
+}
+
+.viewer-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.viewer-node-count {
+  padding: 6px 12px;
+  background: #374151;
+  color: #ffffff;
+  border-radius: 16px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.viewer-action-button {
+  padding: 8px;
+  background: #2a2a2a;
+  color: #ffffff;
+  border: 1px solid #404040;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.viewer-action-button:hover {
+  background: #333333;
+  border-color: #505050;
+}
+
+.viewer-action-button.danger {
+  border-color: #dc2626;
+  color: #f87171;
+}
+
+.viewer-action-button.danger:hover {
+  background: rgba(220, 38, 38, 0.1);
+  border-color: #ef4444;
+}
+
+.viewer-action-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.viewer-action-button:disabled:hover {
+  background: #2a2a2a;
+  border-color: #404040;
+}
+
+/* 메인 콘텐츠 영역 */
+.viewer-content {
+  flex: 1;
+  overflow-y: auto;
+  background: #1a1a1a;
+}
+
+/* 빈 상태 스타일 */
+.viewer-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 40px;
+  text-align: center;
+}
+
+.viewer-empty-icon {
+  color: #6b7280;
+  margin-bottom: 16px;
+  opacity: 0.6;
+}
+
+.viewer-empty-title {
+  font-size: 24px;
+  font-weight: 600;
+  color: #ffffff;
+  margin-bottom: 8px;
+}
+
+.viewer-empty-description {
+  font-size: 14px;
+  color: #9ca3af;
+  margin-bottom: 24px;
+  max-width: 400px;
+  line-height: 1.5;
+}
+
+.viewer-empty-action {
+  padding: 12px 24px;
+  background: #64b5f6;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.viewer-empty-action:hover {
+  background: #42a5f5;
+  transform: translateY(-1px);
+}
+
+/* 노드 목록 컨테이너 */
+.viewer-nodes-container {
+  padding: 24px;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+/* 🆕 DND 드래그 영역 */
+.viewer-droppable {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  min-height: 200px;
+  transition: all 0.2s ease;
+}
+
+.viewer-droppable.dragging-over {
+  background: rgba(100, 181, 246, 0.05);
+  border-radius: 12px;
+}
+
+/* 뷰어 노드 래퍼 with DND */
+.viewer-node-wrapper {
+  background: #1e1e1e;
+  border: 1px solid #333333;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  transition: all 0.2s ease;
+  cursor: grab;
+}
+
+.viewer-node-wrapper:hover {
+  border-color: #404040;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+}
+
+/* 🆕 드래그 중 스타일 */
+.viewer-node-wrapper.dragging {
+  cursor: grabbing;
+  transform: rotate(3deg);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.6);
+  border-color: #64b5f6;
+  background: #252525;
+  z-index: 1000;
+}
+
+.viewer-node-wrapper.error {
+  border-color: #dc2626;
+}
+
+/* 뷰어 노드 헤더 with DND */
+.viewer-node-header {
+  background: #252525;
+  padding: 12px 16px;
+  border-bottom: 1px solid #333333;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: grab;
+  user-select: none;
+}
+
+.viewer-node-header:active {
+  cursor: grabbing;
+}
+
+.viewer-node-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.viewer-node-id {
+  font-size: 12px;
+  color: #6b7280;
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', monospace;
+  background: #374151;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.viewer-node-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.viewer-node-type {
+  font-size: 12px;
+  color: #9ca3af;
+  font-style: italic;
+}
+
+/* 🆕 헤더 액션 그룹 */
+.viewer-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 🆕 드래그 인디케이터 */
+.viewer-drag-indicator {
+  color: #6b7280;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: grab;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.viewer-drag-indicator:hover {
+  color: #9ca3af;
+  background: rgba(156, 163, 175, 0.1);
+}
+
+.viewer-drag-indicator:active {
+  cursor: grabbing;
+}
+
+.viewer-remove-button {
+  padding: 6px;
+  background: transparent;
+  color: #6b7280;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.viewer-remove-button:hover {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.2);
+}
+
+/* 뷰어 노드 콘텐츠 */
+.viewer-node-content {
+  padding: 0;
+}
+
+/* 뷰어에서 노드 스타일 조정 */
+.viewer-node-content .base-node {
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  width: 100%;
+  margin: 0;
+}
+
+.viewer-node-content .base-node.selected {
+  border: none;
+  box-shadow: none;
+}
+
+/* 뷰어에서 핸들 숨기기 (연결선이 없으므로) */
+.viewer-node-content .react-flow__handle {
+  display: none !important;
+}
+
+/* 에러 노드 스타일 */
+.viewer-node-error {
+  background: #2d1b1b;
+  border: 1px solid #dc2626;
+  border-radius: 8px;
+  padding: 20px;
+  text-align: center;
+}
+
+.viewer-node-error-content h3 {
+  color: #ef4444;
+  margin-bottom: 8px;
+  font-size: 16px;
+}
+
+.viewer-node-error-content p {
+  color: #9ca3af;
+  margin-bottom: 16px;
+  font-size: 14px;
+}
+
+.viewer-node-error .viewer-remove-button {
+  background: #dc2626;
+  color: #ffffff;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.viewer-node-error .viewer-remove-button:hover {
+  background: #b91c1c;
+}
+
+/* 스크롤바 스타일 */
+.viewer-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.viewer-content::-webkit-scrollbar-track {
+  background: #1a1a1a;
+}
+
+.viewer-content::-webkit-scrollbar-thumb {
+  background: #404040;
+  border-radius: 4px;
+}
+
+.viewer-content::-webkit-scrollbar-thumb:hover {
+  background: #505050;
+}
+
+/* 반응형 디자인 */
+@media (max-width: 768px) {
+  .viewer-header {
+    padding: 12px 16px;
+    flex-direction: column;
+    gap: 12px;
+    align-items: stretch;
+  }
+  
+  .viewer-header-left,
+  .viewer-header-right {
+    justify-content: space-between;
+  }
+  
+  .viewer-nodes-container {
+    padding: 16px;
+  }
+  
+  .viewer-node-wrapper {
+    margin: 0 -8px;
+  }
+}

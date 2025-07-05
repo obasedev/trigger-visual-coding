@@ -1,0 +1,67 @@
+/* Workspace 컴포넌트 전용 스타일 */
+
+/* 버튼 컨테이너 */
+.workspace-button-container {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 1000;
+  display: flex;
+  gap: 8px;
+}
+
+/* 공통 버튼 스타일 - 다크모드 통일 */
+.workspace-button {
+  padding: 10px 16px;
+  background: #2a2a2a;
+  color: #ffffff;
+  border: 1px solid #404040;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.workspace-button:hover {
+  background: #333333;
+  border-color: #505050;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.workspace-button:active {
+  background: #252525;
+  transform: translateY(0);
+  transition: transform 0.1s ease;
+}
+
+/* 아이콘 스타일 */
+.workspace-button svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 2;
+}
+
+/* 포커스 스타일 */
+.workspace-button:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+}
+
+/* 비활성화 상태 */
+.workspace-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.workspace-button:disabled:hover {
+  transform: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}

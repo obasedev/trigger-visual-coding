@@ -1,0 +1,390 @@
+/* Langflow 스타일 노드 CSS (상하 분할 구조 적용) */
+.base-node {
+  background: #1c1c21;
+  border: 1px solid #404040;
+  border-radius: 12px;
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+  width: 305px;
+  min-height: 180px;
+  transition: all 0.2s ease;
+}
+
+.base-node.selected {
+  border-color: #ffffff;
+  box-shadow: 0 0 0 2px rgba(110, 110, 110, 0.19), 0 4px 20px rgba(41, 41, 41, 0.4);
+}
+
+/* Header - 통합 헤더 영역 (상하 분할) */
+.node-header {
+  background: linear-gradient(135deg,  #18181b ,#27272e,#18181b);
+  padding: 16px 18px;
+  color: white;
+}
+
+/* 헤더 상단: 아이콘 + 이름 + 버튼들 */
+.header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.node-title-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.node-title {
+  font-weight: 600;
+  font-size: 18px;
+  letter-spacing: -0.025em;
+}
+
+/* 🆕 버튼 그룹 스타일 */
+.node-button-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* 🆕 뷰어 버튼 스타일 */
+.node-viewer-button {
+  padding: 8px;
+  background-color: rgba(55, 55, 55, 0.15);
+  color: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+}
+
+.node-viewer-button:hover {
+  background-color: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.node-viewer-button.active {
+  background-color: rgba(59, 130, 246, 0.3);
+  border-color: rgba(59, 130, 246, 0.6);
+  color: #3b82f6;
+}
+
+.node-viewer-button.active:hover {
+  background-color: rgba(59, 130, 246, 0.4);
+  border-color: rgba(59, 130, 246, 0.8);
+}
+
+/* 실행 버튼 스타일 (기존과 동일하지만 버튼 그룹과 조화) */
+.node-execute-button {
+  padding: 8px 16px;
+  background-color: rgba(55, 55, 55, 0.15);
+  color: rgb(255, 255, 255);
+  border: 1px solid rgba(255, 255, 255, 0.603);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.node-execute-button:hover {
+  background-color: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+/* 헤더 하단: 짧은 설명 */
+.header-bottom {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.8);
+  font-style: normal;
+  line-height: 1.4;
+  margin-top: 4px;
+}
+
+/* Status Section - 통합 상태 영역 (상하 분할) */
+.node-status-section {
+  position: relative;
+  background-color: #1c1c21;
+  padding: 12px 20px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 1px solid #404040;
+  text-align: center;
+}
+
+/* 상태 상단: 트리거 상태 */
+.status-top {
+  margin-bottom: 1px;
+}
+
+.node-status {
+  padding: 6px 12px;
+  border-radius: 16px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-weight: 500;
+}
+
+.node-status.waiting {
+  background-color: #374151;
+  color: #ffffff;
+}
+
+.node-status.running {
+  background-color: #f59e0b;
+  color: #ffffff;
+}
+
+.node-status.completed {
+  background-color: #10b981;
+  color: #ffffff;
+}
+
+.node-status.failed {
+  background-color: #ef4444;
+  color: #ffffff;
+}
+
+/* 상태 하단: 결과 메시지 */
+.status-bottom {
+  font-size: 11px;
+  color: #9ca3af;
+  font-style: italic;
+  line-height: 1.3;
+  min-height: 16px;
+  max-width: 240px;
+  word-wrap: break-word;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.status-bottom.completed {
+  color: #10b981;
+}
+
+.status-bottom.failed {
+  color: #ef4444;
+}
+
+.status-bottom.running {
+  color: #f59e0b;
+}
+
+/* Spinner animation */
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.spinner {
+  width: 10px;
+  height: 10px;
+  border: 2px solid currentColor;
+  border-top: 2px solid transparent;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+/* Content Section */
+.node-content {
+  background-color: #1c1c21;
+  color: #ffffff;
+}
+
+/* Input/Output Field - Langflow 스타일 */
+.node-input-field {
+  position: relative;
+  padding: 8px 16px;
+  border-bottom: 1px solid #404040;
+  font-size: 13px;
+}
+
+.node-input-content {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-left: 18px;
+  padding-right: 18px;
+}
+
+.node-input-label {
+  color: #ffffff;
+  font-weight: 500;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.node-input-value {
+  color: #ffffff;
+  font-weight: 500;
+  font-size: 13px;
+  padding: 12px 16px;
+  background-color: #1c1c21;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.node-input {
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid #828992;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+  outline: none;
+  background-color: #1c1c21;
+  color: #cacaca;
+  min-height: 40px;
+  box-sizing: border-box;
+  transition: all 0.2s ease;
+}
+
+.node-input:focus {
+  border-color: #ffffff;
+  background-color: #27272a;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.node-input::placeholder {
+  color: #b7b7b7;
+}
+
+.node-textarea {
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid #ffffff;
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  resize: none;
+  background-color: #1c1c21;
+  color: #cacaca;
+  min-height: 40px;
+  box-sizing: border-box;
+  transition: all 0.2s ease;
+}
+
+.node-textarea:focus {
+  border-color: #ffffff;
+  background-color: #27272a;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.node-textarea::placeholder {
+  color: #9ca3af;
+}
+
+.node-input-display-only {
+  background-color: #1c1c21;
+  color: #8992a0;
+  padding: 12px 16px;
+  border: 1px solid #4b5563;
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: inherit;
+  min-height: 44px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-all;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+/* Info Section */
+.node-info-section {
+  background-color: #1c1c21;
+  padding: 16px 20px;
+  border-bottom: 1px solid #404040;
+}
+
+.node-info-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.node-info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+}
+
+.node-info-label {
+  color: #9ca3af;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.node-info-value {
+  color: #ffffff;
+  font-weight: 500;
+  font-size: 13px;
+}
+
+.node-info-value.monospace {
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', monospace;
+  background-color: #374151;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+/* Description Section - 제거됨 (헤더로 이동) */
+
+/* Output Section - 기존 별도 result 섹션 제거됨 */
+
+/* Main Content Layout */
+.node-main-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.node-main-column {
+  width: 100%;
+}
+
+.node-output-column {
+  width: 100%;
+}
+
+/* Success and Fail Icons */
+.success-icon {
+  color: #10b981;
+}
+
+.fail-icon {
+  color: #ef4444;
+}
