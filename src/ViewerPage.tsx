@@ -54,72 +54,40 @@ function ViewerPage({
 
   // 🎯 DND 드래그 완료 핸들러
   const handleDragEnd = (result: DropResult) => {
-    // 드래그가 취소되었거나 같은 위치에 드롭된 경우
     if (!result.destination || result.destination.index === result.source.index) {
       return;
     }
 
-    // 배열 순서 변경
     const reorderedItems = Array.from(viewerItems);
     const [removed] = reorderedItems.splice(result.source.index, 1);
     reorderedItems.splice(result.destination.index, 0, removed);
 
-    // 순서 변경된 목록으로 업데이트
     onViewerItemsChange(reorderedItems);
-    console.log(`🔄 Viewer order changed: moved item from ${result.source.index} to ${result.destination.index}`);
   };
 
-  // 🔄 수정된 executeNextNodes - 워크스페이스와 즉시 동기화
+  // 🔄 간소화된 executeNextNodes - App에서 처리하므로 단순하게
   const executeNextNodes = useCallback((completedNodeId: string) => {
-    console.log(`🚀 Viewer: Node ${completedNodeId} completed, finding next nodes...`);
-    
-    // 1. 상위 컴포넌트의 executeNextNodes 호출
     executeNextNodesProp(completedNodeId);
-    
-    // 2. 뷰어에서도 즉시 다음 노드들 찾아서 트리거
-    const nextNodeIds = allEdges
-      .filter(edge => edge.source === completedNodeId && edge.sourceHandle === 'trigger-output')
-      .map(edge => edge.target);
-    
-    if (nextNodeIds.length > 0) {
-      console.log(`🔗 Viewer: Triggering next nodes immediately: ${nextNodeIds.join(', ')}`);
-      
-      const triggerTime = Date.now();
-      
-      // 각 다음 노드에 트리거 신호 전송 (워크스페이스 노드들 포함)
-      nextNodeIds.forEach(nodeId => {
-        updateNodeData(nodeId, { triggerExecution: triggerTime });
-        console.log(`⚡ Viewer: Triggered node ${nodeId} with timestamp ${triggerTime}`);
-      });
-    } else {
-      console.log(`🏁 Viewer: No next nodes found for ${completedNodeId}`);
-    }
-  }, [executeNextNodesProp, allEdges, updateNodeData]);
+  }, [executeNextNodesProp]);
 
   // 뷰어에서 노드 제거
   const removeFromViewer = (nodeId: string) => {
     const updatedItems = viewerItems.filter(item => item.nodeId !== nodeId);
     onViewerItemsChange(updatedItems);
-    console.log(`🗑️ Node ${nodeId} removed from viewer`);
   };
 
   // 뷰어 전체 삭제
   const clearViewer = () => {
     onViewerItemsChange([]);
-    console.log('🧹 Viewer cleared');
   };
 
   // 뷰어 새로고침 (실제 노드 데이터와 동기화)
   const refreshViewer = () => {
-    // 존재하지 않는 노드들 제거
     const existingNodeIds = new Set(allNodes.map(node => node.id));
     const validItems = viewerItems.filter(item => existingNodeIds.has(item.nodeId));
     
     if (validItems.length !== viewerItems.length) {
       onViewerItemsChange(validItems);
-      console.log(`🔄 Viewer refreshed: ${viewerItems.length - validItems.length} invalid items removed`);
-    } else {
-      console.log('🔄 Viewer is already up to date');
     }
   };
 
@@ -185,16 +153,8 @@ function ViewerPage({
                     ref={provided.innerRef}
                     className={`viewer-droppable ${snapshot.isDraggingOver ? 'dragging-over' : ''}`}
                   >
-                    {/* 🔄 수정된 WorkflowProvider - 수정된 executeNextNodes 전달 */}
-                    <WorkflowProvider
-                      nodes={allNodes}
-                      edges={allEdges}
-                      updateNodeData={updateNodeData}
-                      onExecuteNextNodes={executeNextNodes} // 수정된 함수 전달
-                      viewerItems={viewerItems}
-                      onViewerItemsChange={onViewerItemsChange}
-                    >
-                      {viewerNodes.map((node, index) => {
+                    {/* 🔧 수정: WorkflowProvider 제거 (App에서 관리) */}
+                    {viewerNodes.map((node, index) => {
                         const NodeComponent = nodeComponents[node.type];
                         
                         if (!NodeComponent) {
@@ -269,7 +229,6 @@ function ViewerPage({
                         );
                       })}
                       {provided.placeholder}
-                    </WorkflowProvider>
                   </div>
                 )}
               </Droppable>

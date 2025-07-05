@@ -3,14 +3,13 @@ import {
   ReactFlow, 
   Background, 
   Controls, 
-  useNodesState, 
-  useEdgesState, 
   addEdge,
   Connection,
   Edge,
   useReactFlow,
   Node,
-  NodeChange
+  NodeChange,
+  EdgeChange
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { invoke } from '@tauri-apps/api/core';
@@ -45,10 +44,10 @@ const defaultNodes: Node[] = [
 
 // Workspace Props 인터페이스
 interface WorkspaceProps {
-  initialNodes?: Node[];
-  initialEdges?: Edge[];
-  onNodesChange?: (nodes: Node[]) => void;
-  onEdgesChange?: (edges: Edge[]) => void;
+  nodes: Node[];
+  edges: Edge[];
+  onNodesChange: (nodes: Node[]) => void;
+  onEdgesChange: (edges: Edge[]) => void;
   viewerItems: ViewerNodeItem[];
   onViewerItemsChange: (items: ViewerNodeItem[]) => void;
   onGoToViewer: () => void;
@@ -57,10 +56,10 @@ interface WorkspaceProps {
 }
 
 function Workspace({
-  initialNodes = [],
-  initialEdges = [],
-  onNodesChange: onNodesChangeProp,
-  onEdgesChange: onEdgesChangeProp,
+  nodes,
+  edges,
+  onNodesChange,
+  onEdgesChange,
   viewerItems,
   onViewerItemsChange,
   onGoToViewer,
@@ -68,15 +67,7 @@ function Workspace({
   executeNextNodes: executeNextNodesProp
 }: WorkspaceProps) {
 
-  // 로컬 상태 관리 (React Flow용)
-  const [nodes, setNodes, onNodesChangeOriginal] = useNodesState(
-    initialNodes.length > 0 ? initialNodes : defaultNodes
-  );
-  const [edges, setEdges, onEdgesChange] = useEdgesState(
-    initialEdges.length > 0 ? initialEdges : []
-  );
-  
-  // 기타 워크스페이스 상태들
+  // 🔄 기존 로컬 상태들 (히스토리, 클립보드 등은 유지)
   const [internalClipboard, setInternalClipboard] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
   const [historyIndex, setHistoryIndex] = useState<number>(-1);
@@ -84,36 +75,37 @@ function Workspace({
   const reactFlowInstance = useReactFlow();
   const nodeManager = getNodeManager();
 
-  // 🔄 상위 컴포넌트와 동기화
+  // 🚀 초기 노드가 없으면 기본 노드 설정
   useEffect(() => {
-    if (onNodesChangeProp) {
-      onNodesChangeProp(nodes);
-    }
-  }, [nodes, onNodesChangeProp]);
-
-  useEffect(() => {
-    if (onEdgesChangeProp) {
-      onEdgesChangeProp(edges);
-    }
-  }, [edges, onEdgesChangeProp]);
-
-  // 노드 데이터 업데이트 함수
-  const updateNodeData = useCallback((nodeId: string, newData: Partial<BaseNodeData>) => {
-    setNodes((currentNodes) =>
-      currentNodes.map((node) => {
-        if (node.id === nodeId) {
-          const updatedData = { ...node.data, ...newData };
-          return { ...node, data: updatedData };
+    if (nodes.length === 0) {
+      console.log('🏗️ Setting up default nodes...');
+      onNodesChange(defaultNodes);
+      
+      // NodeManager에 기본 노드 ID 등록
+      defaultNodes.forEach(node => {
+        const numericId = parseInt(node.id);
+        if (!isNaN(numericId)) {
+          nodeManager.registerExistingId(numericId);
         }
-        return node;
-      })
-    );
-    
-    // 상위 컴포넌트에도 전달
-    updateNodeDataProp(nodeId, newData);
-  }, [setNodes, updateNodeDataProp]);
+      });
+    }
+  }, [nodes.length, onNodesChange, nodeManager]);
 
-  // 다음 노드들 실행 함수
+  // 🔄 노드 데이터 업데이트 함수 (App 상태 직접 수정)
+  const updateNodeData = useCallback((nodeId: string, newData: Partial<BaseNodeData>) => {
+    const updatedNodes = nodes.map((node) => {
+      if (node.id === nodeId) {
+        const updatedData = { ...node.data, ...newData };
+        return { ...node, data: updatedData };
+      }
+      return node;
+    });
+    
+    onNodesChange(updatedNodes);
+    updateNodeDataProp(nodeId, newData);
+  }, [nodes, onNodesChange, updateNodeDataProp]);
+
+  // 🚀 다음 노드들 실행 함수 (App 상태 직접 수정)
   const executeNextNodes = useCallback((completedNodeId: string) => {
     const nextNodeIds: string[] = edges
       .filter(edge => edge.source === completedNodeId && edge.sourceHandle === 'trigger-output')
@@ -122,24 +114,21 @@ function Workspace({
     if (nextNodeIds.length === 0) return;
     
     const triggerTime = Date.now();
-    setNodes(currentNodes => 
-      currentNodes.map(node => 
-        nextNodeIds.includes(node.id) 
-          ? { ...node, data: { ...node.data, triggerExecution: triggerTime } } 
-          : node
-      )
+    const updatedNodes = nodes.map(node => 
+      nextNodeIds.includes(node.id) 
+        ? { ...node, data: { ...node.data, triggerExecution: triggerTime } } 
+        : node
     );
     
-    // 상위 컴포넌트에도 전달
+    onNodesChange(updatedNodes);
     executeNextNodesProp(completedNodeId);
-  }, [edges, setNodes, executeNextNodesProp]);
+  }, [edges, nodes, onNodesChange, executeNextNodesProp]);
 
   // 🧹 뷰어 목록 정리 함수
   const cleanupViewerItems = useCallback((remainingNodeIds: Set<string>) => {
     const cleanedItems = viewerItems.filter(item => remainingNodeIds.has(item.nodeId));
     if (cleanedItems.length !== viewerItems.length) {
       onViewerItemsChange(cleanedItems);
-      console.log(`🧹 Cleaned ${viewerItems.length - cleanedItems.length} items from viewer`);
     }
   }, [viewerItems, onViewerItemsChange]);
 
@@ -166,21 +155,19 @@ function Workspace({
     }
 
     if (updates.length > 0) {
-      console.log('🔄 Syncing data for', updates.length, 'connections...');
-      setNodes(currentNodes =>
-        currentNodes.map(node => {
-          const update = updates.find(u => u.nodeId === node.id);
-          if (update) {
-            return { ...node, data: { ...node.data, ...update.newData } };
-          }
-          return node;
-        })
-      );
+      const updatedNodes = nodes.map(node => {
+        const update = updates.find(u => u.nodeId === node.id);
+        if (update) {
+          return { ...node, data: { ...node.data, ...update.newData } };
+        }
+        return node;
+      });
+      onNodesChange(updatedNodes);
     }
-  }, [nodes, edges, setNodes]);
+  }, [nodes, edges, onNodesChange]);
 
   // 📝 노드 변경 처리 (삭제시 뷰어 정리 포함)
-  const onNodesChange = useCallback(
+  const onNodesChangeHandler = useCallback(
     (changes: NodeChange[]) => {
       // 노드 삭제시 뷰어에서도 제거 및 ID 관리
       const deletedNodeIds = changes
@@ -204,9 +191,63 @@ function Workspace({
         cleanupViewerItems(remainingNodeIds);
       }
 
-      onNodesChangeOriginal(changes);
+      // React Flow 스타일의 변경사항을 실제 노드 배열에 적용
+      let updatedNodes = [...nodes];
+      
+      changes.forEach(change => {
+        switch (change.type) {
+          case 'position':
+            updatedNodes = updatedNodes.map(node =>
+              node.id === change.id
+                ? { ...node, position: change.position || node.position }
+                : node
+            );
+            break;
+          case 'select':
+            updatedNodes = updatedNodes.map(node =>
+              node.id === change.id
+                ? { ...node, selected: change.selected }
+                : node
+            );
+            break;
+          case 'remove':
+            updatedNodes = updatedNodes.filter(node => node.id !== change.id);
+            break;
+          // 다른 변경 타입들도 필요에 따라 추가
+        }
+      });
+      
+      onNodesChange(updatedNodes);
     },
-    [onNodesChangeOriginal, nodeManager, nodes, cleanupViewerItems]
+    [nodes, onNodesChange, nodeManager, cleanupViewerItems]
+  );
+
+  // 📝 엣지 변경 처리
+  const onEdgesChangeHandler = useCallback(
+    (changes: EdgeChange[]) => {
+      console.log('📝 Edge changes:', changes);
+      
+      let updatedEdges = [...edges];
+      
+      changes.forEach(change => {
+        switch (change.type) {
+          case 'select':
+            updatedEdges = updatedEdges.map(edge =>
+              edge.id === change.id
+                ? { ...edge, selected: change.selected }
+                : edge
+            );
+            break;
+          case 'remove':
+            updatedEdges = updatedEdges.filter(edge => edge.id !== change.id);
+            break;
+          // 다른 변경 타입들도 필요에 따라 추가
+        }
+      });
+      
+      onEdgesChange(updatedEdges);
+    },
+    [edges, onEdgesChange]
   );
 
   // 🏗️ 초기화 작업
@@ -246,8 +287,8 @@ function Workspace({
     if (historyIndex < 0) return;
     const stateToRestore = history[historyIndex];
     if (stateToRestore) {
-      setNodes(stateToRestore.nodes);
-      setEdges(stateToRestore.edges);
+      onNodesChange(stateToRestore.nodes);
+      onEdgesChange(stateToRestore.edges);
       nodeManager.syncWithNodes(stateToRestore.nodes);
       setHistoryIndex(prev => prev - 1);
       
@@ -255,14 +296,14 @@ function Workspace({
       const restoredNodeIds = new Set(stateToRestore.nodes.map((node: Node) => node.id));
       cleanupViewerItems(restoredNodeIds);
     }
-  }, [history, historyIndex, setNodes, setEdges, nodeManager, cleanupViewerItems]);
+  }, [history, historyIndex, onNodesChange, onEdgesChange, nodeManager, cleanupViewerItems]);
 
   const redo = useCallback(() => {
     if (historyIndex + 1 >= history.length) return;
     const stateToRestore = history[historyIndex + 1];
     if (stateToRestore) {
-      setNodes(stateToRestore.nodes);
-      setEdges(stateToRestore.edges);
+      onNodesChange(stateToRestore.nodes);
+      onEdgesChange(stateToRestore.edges);
       nodeManager.syncWithNodes(stateToRestore.nodes);
       setHistoryIndex(prev => prev + 1);
       
@@ -270,15 +311,14 @@ function Workspace({
       const restoredNodeIds = new Set(stateToRestore.nodes.map((node: Node) => node.id));
       cleanupViewerItems(restoredNodeIds);
     }
-  }, [history, historyIndex, setNodes, setEdges, nodeManager, cleanupViewerItems]);
+  }, [history, historyIndex, onNodesChange, onEdgesChange, nodeManager, cleanupViewerItems]);
 
   // 🎯 선택/복사/붙여넣기 기능
   const selectAllNodes = useCallback(() => {
     saveToHistory();
-    setNodes(currentNodes => 
-      currentNodes.map(node => ({ ...node, selected: true }))
-    );
-  }, [setNodes, saveToHistory]);
+    const updatedNodes = nodes.map(node => ({ ...node, selected: true }));
+    onNodesChange(updatedNodes);
+  }, [nodes, onNodesChange, saveToHistory]);
 
   const copySelectedNodes = useCallback(() => {
     const selectedNodes = nodes.filter(node => node.selected);
@@ -329,13 +369,15 @@ function Workspace({
       return null;
     }).filter(Boolean);
     
-    setNodes(currentNodes => [
-      ...currentNodes.map(node => ({ ...node, selected: false })),
+    const updatedNodes = [
+      ...nodes.map(node => ({ ...node, selected: false })),
       ...newNodes
-    ]);
+    ];
+    const updatedEdges = [...edges, ...newEdges as Edge[]];
     
-    setEdges(currentEdges => [...currentEdges, ...newEdges as Edge[]]);
-  }, [internalClipboard, setNodes, setEdges, saveToHistory, nodeManager]);
+    onNodesChange(updatedNodes);
+    onEdgesChange(updatedEdges);
+  }, [internalClipboard, nodes, edges, onNodesChange, onEdgesChange, saveToHistory, nodeManager]);
 
   // ⌨️ 키보드 단축키
   useEffect(() => {
@@ -389,24 +431,36 @@ function Workspace({
       position: { x: Math.random() * 300 + 200, y: Math.random() * 300 + 150 },
       data: defaultData
     };
-    setNodes(prevNodes => [...prevNodes, newNode]);
-  }, [setNodes, saveToHistory, nodeManager]);
+    
+    const updatedNodes = [...nodes, newNode];
+    onNodesChange(updatedNodes);
+  }, [nodes, onNodesChange, saveToHistory, nodeManager]);
 
   // 🔗 노드 연결
   const onConnect = useCallback(
     (params: Connection | Edge) => {
       saveToHistory();
-      setEdges((eds) => addEdge(params, eds));
+      const updatedEdges = addEdge(params, edges);
+      onEdgesChange(updatedEdges);
     },
-    [setEdges, saveToHistory]
+    [edges, onEdgesChange, saveToHistory]
   );
 
-  // 💾 워크플로우 저장
+  // 💾 워크플로우 저장 (뷰어 정보 포함)
   const saveWorkflow = useCallback(async () => {
     try {
       const flow = reactFlowInstance.toObject();
-      const result = await invoke('save_workflow_to_desktop', { workflowData: JSON.stringify(flow, null, 2) });
-      console.log('✅ Save result:', result);
+      
+      // 🆕 뷰어 정보도 포함해서 저장
+      const workflowData = {
+        ...flow,
+        viewerItems // 뷰어 아이템 추가
+      };
+      
+      const result = await invoke('save_workflow_to_desktop', { 
+        workflowData: JSON.stringify(workflowData, null, 2) 
+      });
+      console.log('✅ Workflow + Viewer saved successfully');
     } catch (error: any) {
       if (error?.message === 'User cancelled the save operation') {
         console.log('💭 Save cancelled by user');
@@ -415,9 +469,9 @@ function Workspace({
         alert('❌ Save failed: ' + (error?.message || error));
       }
     }
-  }, [reactFlowInstance]);
+  }, [reactFlowInstance, viewerItems]);
 
-  // 📂 워크플로우 불러오기
+  // 📂 워크플로우 불러오기 (뷰어 정보 포함)
   const loadWorkflow = useCallback(async () => {
     try {
       const workflowData = await invoke('load_workflow_from_desktop') as string;
@@ -427,16 +481,31 @@ function Workspace({
       if (!flow || typeof flow !== 'object') throw new Error('Invalid workflow format');
       
       if (Array.isArray(flow.nodes)) {
-        setNodes(flow.nodes);
+        onNodesChange(flow.nodes);
         nodeManager.syncWithNodes(flow.nodes);
         
         // 노드 로드시 뷰어 목록 정리
         const loadedNodeIds = new Set(flow.nodes.map((node: Node) => node.id));
         cleanupViewerItems(loadedNodeIds);
       }
-      if (Array.isArray(flow.edges)) setEdges(flow.edges);
+      if (Array.isArray(flow.edges)) onEdgesChange(flow.edges);
       if (flow.viewport) reactFlowInstance.setViewport(flow.viewport);
-      console.log('✅ Workflow loaded successfully');
+      
+      // 🆕 뷰어 정보도 복원 (있는 경우에만)
+      if (Array.isArray(flow.viewerItems)) {
+        // 실제 존재하는 노드들만 필터링
+        const currentNodeIds = new Set(flow.nodes?.map((node: Node) => node.id) || []);
+        const validViewerItems = flow.viewerItems.filter((item: any) => 
+          currentNodeIds.has(item.nodeId)
+        );
+        onViewerItemsChange(validViewerItems);
+        console.log(`✅ Viewer restored: ${validViewerItems.length} items`);
+      } else {
+        // 뷰어 정보가 없으면 초기화
+        onViewerItemsChange([]);
+      }
+      
+      console.log('✅ Workflow + Viewer loaded successfully');
     } catch (error: any) {
       if (error?.message === 'User cancelled the load operation') {
         console.log('💭 Load cancelled by user');
@@ -445,9 +514,9 @@ function Workspace({
         alert('❌ Load failed: ' + (error?.message || error));
       }
     }
-  }, [reactFlowInstance, setNodes, setEdges, nodeManager, cleanupViewerItems]);
+  }, [reactFlowInstance, onNodesChange, onEdgesChange, nodeManager, cleanupViewerItems, onViewerItemsChange]);
 
-  // 📎 워크플로우 추가
+  // 📎 워크플로우 추가 (뷰어 정보 병합)
   const appendWorkflow = useCallback(async () => {
     try {
       const workflowData = await invoke('load_workflow_from_desktop') as string;
@@ -471,9 +540,27 @@ function Workspace({
         return newSource && newTarget ? { ...edge, id: `imported_edge_${Date.now()}_${Math.random()}`, source: newSource, target: newTarget } : null;
       }).filter(Boolean);
       
-      setNodes(prev => [...prev, ...remappedNodes]);
-      setEdges(prev => [...prev, ...remappedEdges]);
-      console.log(`✅ ${remappedNodes.length} nodes appended successfully`);
+      const updatedNodes = [...nodes, ...remappedNodes];
+      const updatedEdges = [...edges, ...remappedEdges];
+      
+      onNodesChange(updatedNodes);
+      onEdgesChange(updatedEdges);
+      
+      // 🆕 뷰어 정보도 추가 (ID 매핑 적용)
+      if (Array.isArray(flow.viewerItems) && flow.viewerItems.length > 0) {
+        const remappedViewerItems = flow.viewerItems
+          .map((item: any) => {
+            const newNodeId = idMapping.get(item.nodeId);
+            return newNodeId ? { ...item, nodeId: newNodeId, addedAt: Date.now() } : null;
+          })
+          .filter(Boolean);
+        
+        const mergedViewerItems = [...viewerItems, ...remappedViewerItems];
+        onViewerItemsChange(mergedViewerItems);
+        console.log(`✅ Viewer items appended: ${remappedViewerItems.length} items`);
+      }
+      
+      console.log(`✅ ${remappedNodes.length} nodes + viewer items appended successfully`);
     } catch (error: any) {
       if (error?.message === 'User cancelled the load operation') {
         console.log('💭 Append cancelled by user');
@@ -482,7 +569,7 @@ function Workspace({
         alert('❌ Append failed: ' + (error?.message || error));
       }
     }
-  }, [setNodes, setEdges, saveToHistory, nodeManager]);
+  }, [nodes, edges, viewerItems, onNodesChange, onEdgesChange, onViewerItemsChange, saveToHistory, nodeManager]);
 
   // 👁️ 뷰어 페이지로 이동
   const openViewer = useCallback(() => {
@@ -524,29 +611,20 @@ function Workspace({
           </button>
         </div>
         
-        {/* 워크플로우 컨텍스트와 React Flow */}
-        <WorkflowProvider 
+        {/* 🔧 수정: WorkflowProvider 제거 (App에서 관리) */}
+        <ReactFlow
           nodes={nodes}
           edges={edges}
-          updateNodeData={updateNodeData}
-          onExecuteNextNodes={executeNextNodes}
-          viewerItems={viewerItems}
-          onViewerItemsChange={onViewerItemsChange}
+          onNodesChange={onNodesChangeHandler}
+          onEdgesChange={onEdgesChangeHandler}
+          onConnect={onConnect}
+          nodeTypes={nodeTypes}
+          deleteKeyCode={['Backspace', 'Delete']}
+          fitView
         >
-          <ReactFlow
-            nodes={nodes}
-            edges={edges}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onConnect={onConnect}
-            nodeTypes={nodeTypes}
-            deleteKeyCode={['Backspace', 'Delete']}
-            fitView
-          >
-            <Background />
-            <Controls />
-          </ReactFlow>
-        </WorkflowProvider>
+          <Background />
+          <Controls />
+        </ReactFlow>
       </div>
     </div>
   );
