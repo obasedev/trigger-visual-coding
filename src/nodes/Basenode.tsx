@@ -14,6 +14,7 @@ import type {
 } from '../types';
 
 import { useWorkflow, useHandleConnection } from '../WorkflowContext';
+import { useViewer } from '../ViewerContext'; // 🆕 뷰어 감지 Hook
 
 const statusText: Record<NodeStatus, string> = {
   waiting: 'Ready',
@@ -35,6 +36,7 @@ export function InputField({
   disabled
 }: InputFieldProps) {
   const isConnected = handleId ? useHandleConnection(nodeId, handleId) : false;
+  const isViewer = useViewer(); // 🎯 뷰어 모드 감지
 
   const handleChange = useCallback((newValue: string) => {
     if (disabled) return;
@@ -45,7 +47,8 @@ export function InputField({
 
   return (
     <div className="node-input-field">
-      {handleId && (
+      {/* 🎯 핵심 수정: 뷰어에서만 Handle 제거 */}
+      {handleId && !isViewer && (
         <Handle
           type="target"
           position={Position.Left}
@@ -105,24 +108,28 @@ export function OutputField({
   handleId: string;
 }) {
   const isConnected = useHandleConnection(nodeId, handleId);
+  const isViewer = useViewer(); // 🎯 뷰어 모드 감지
 
   return (
     <div className="node-input-field">
-      <Handle
-        type="source"
-        position={Position.Right}
-        id={handleId}
-        style={{
-          backgroundColor: isConnected ? '#6366f1' : '#777777',
-          width: '10px',
-          height: '10px',
-          right: '12px',
-          border: '2px solid white',
-          boxShadow: isConnected ? '0 2px 6px rgba(255, 193, 7, 0.3)' : '0 1px 3px rgba(0,0,0,0.3)',
-          transition: 'all 0.2s ease',
-          zIndex: 10
-        }}
-      />
+      {/* 🎯 핵심 수정: 뷰어에서만 Handle 제거 */}
+      {!isViewer && (
+        <Handle
+          type="source"
+          position={Position.Right}
+          id={handleId}
+          style={{
+            backgroundColor: isConnected ? '#6366f1' : '#777777',
+            width: '10px',
+            height: '10px',
+            right: '12px',
+            border: '2px solid white',
+            boxShadow: isConnected ? '0 2px 6px rgba(255, 193, 7, 0.3)' : '0 1px 3px rgba(0,0,0,0.3)',
+            transition: 'all 0.2s ease',
+            zIndex: 10
+          }}
+        />
+      )}
       <div className="node-input-content">
         <div className="node-input-label">
           {icon}
@@ -159,6 +166,7 @@ function BaseNode<T extends BaseNodeData = BaseNodeData>({
 
   // 🆕 Context에서 뷰어 기능 가져오기 (props가 없을 때 fallback)
   const { viewerActions } = useWorkflow();
+  const isViewer = useViewer(); // 🎯 뷰어 모드 감지
 
   const handleExecute = React.useCallback(() => {
     try {
@@ -242,14 +250,16 @@ function BaseNode<T extends BaseNodeData = BaseNodeData>({
           
           {/* 🆕 버튼 그룹: 뷰어 버튼 + 실행 버튼 */}
           <div className="node-button-group">
-            {/* 뷰어 버튼 */}
-            <button 
-              onClick={handleViewerToggle} 
-              className={`node-viewer-button ${currentIsInViewer ? 'active' : ''}`}
-              title={currentIsInViewer ? 'Remove from viewer' : 'Add to viewer'}
-            >
-              {currentIsInViewer ? <EyeOff size={12} /> : <Eye size={12} />}
-            </button>
+            {/* 뷰어 버튼 - 뷰어에서는 숨김 */}
+            {!isViewer && (
+              <button 
+                onClick={handleViewerToggle} 
+                className={`node-viewer-button ${currentIsInViewer ? 'active' : ''}`}
+                title={currentIsInViewer ? 'Remove from viewer' : 'Add to viewer'}
+              >
+                {currentIsInViewer ? <EyeOff size={12} /> : <Eye size={12} />}
+              </button>
+            )}
             
             {/* 실행 버튼 */}
             <button onClick={handleExecute} className="node-execute-button">
@@ -266,8 +276,8 @@ function BaseNode<T extends BaseNodeData = BaseNodeData>({
 
       {/* 2. 단순화된 상태 영역 (트리거만) */}
       <div className="node-status-section">
-        {/* 트리거 핸들들 */}
-        {hasInput && (
+        {/* 🎯 핵심 수정: 뷰어에서만 트리거 Handle 제거 */}
+        {hasInput && !isViewer && (
           <Handle
             type="target"
             position={Position.Left}
@@ -279,7 +289,7 @@ function BaseNode<T extends BaseNodeData = BaseNodeData>({
           />
         )}
         
-        {hasOutput && (
+        {hasOutput && !isViewer && (
           <Handle
             type="source"
             position={Position.Right}
@@ -340,7 +350,8 @@ function BaseNode<T extends BaseNodeData = BaseNodeData>({
                         : output.value}
                     </div>
                   </div>
-                  {output.id !== 'status' && (
+                  {/* 🎯 핵심 수정: 뷰어에서만 데이터 출력 Handle 제거 */}
+                  {output.id !== 'status' && !isViewer && (
                     <Handle
                       type="source"
                       position={Position.Right}

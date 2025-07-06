@@ -3,15 +3,17 @@ import { ReactFlowProvider } from '@xyflow/react';
 import Workspace from './Workspace';
 import ViewerPage from './ViewerPage';
 import WorkflowEngine from './WorkflowEngine';
+import { ViewerProvider } from './ViewerContext';
 import { ViewerNodeItem } from './types';
 import { Node, Edge } from '@xyflow/react';
 import { BaseNodeData } from './types';
 import './App.css';
 
 /**
- * 메인 애플리케이션 컴포넌트 (통합된 Context)
- * 🔧 수정사항: WorkflowProvider를 App 레벨로 이동하여 
- * Workspace와 ViewerPage가 동일한 Context를 공유하도록 함
+ * 🎯 핵심 수정: ReactFlowProvider 완전 분리
+ * - Workspace: 독립적인 ReactFlowProvider
+ * - ViewerPage: 독립적인 ReactFlowProvider  
+ * - Handle ID 충돌 완전 해결!
  */
 
 type AppPage = 'workspace' | 'viewer';
@@ -102,55 +104,69 @@ function App() {
 
   return (
     <div className="app-container">
-      <ReactFlowProvider>
-        {/* 🔧 Handle 에러 해결: 다시 동시 렌더링 방식으로 (더 안전) */}
-        <WorkflowEngine
-          nodes={nodes}
-          edges={edges}
-          updateNodeData={updateNodeData}
-          executeNextNodes={executeNextNodes}
-          viewerItems={viewerItems}
-          onViewerItemsChange={handleViewerItemsChange}
-        >
-          {/* 🎯 두 페이지 동시 렌더링 (Handle 에러 없음) */}
-          
-          {/* Workspace - 항상 렌더링됨 (백그라운드 실행 보장) */}
-          <div style={{ 
-            display: currentPage === 'workspace' ? 'block' : 'none',
-            width: '100%',
-            height: '100%'
-          }}>
-            <Workspace 
+      {/* 🎯 핵심 수정: 각 페이지마다 독립적인 ReactFlowProvider */}
+      
+      {/* Workspace - 독립적인 ReactFlowProvider */}
+      <div style={{ 
+        display: currentPage === 'workspace' ? 'block' : 'none',
+        width: '100%',
+        height: '100%'
+      }}>
+        <ReactFlowProvider>
+          <ViewerProvider isViewer={false}>
+            <WorkflowEngine
               nodes={nodes}
               edges={edges}
-              onNodesChange={handleNodesChange}
-              onEdgesChange={handleEdgesChange}
-              viewerItems={viewerItems}
-              onViewerItemsChange={handleViewerItemsChange}
-              onGoToViewer={goToViewer}
               updateNodeData={updateNodeData}
               executeNextNodes={executeNextNodes}
-            />
-          </div>
+              viewerItems={viewerItems}
+              onViewerItemsChange={handleViewerItemsChange}
+            >
+              <Workspace 
+                nodes={nodes}
+                edges={edges}
+                onNodesChange={handleNodesChange}
+                onEdgesChange={handleEdgesChange}
+                viewerItems={viewerItems}
+                onViewerItemsChange={handleViewerItemsChange}
+                onGoToViewer={goToViewer}
+                updateNodeData={updateNodeData}
+                executeNextNodes={executeNextNodes}
+              />
+            </WorkflowEngine>
+          </ViewerProvider>
+        </ReactFlowProvider>
+      </div>
 
-          {/* ViewerPage - 항상 렌더링됨 */}
-          <div style={{ 
-            display: currentPage === 'viewer' ? 'block' : 'none',
-            width: '100%',
-            height: '100%'
-          }}>
-            <ViewerPage
-              viewerItems={viewerItems}
-              allNodes={nodes}
-              allEdges={edges}
-              onViewerItemsChange={handleViewerItemsChange}
+      {/* ViewerPage - 완전히 독립적인 ReactFlowProvider */}
+      <div style={{ 
+        display: currentPage === 'viewer' ? 'block' : 'none',
+        width: '100%',
+        height: '100%'
+      }}>
+        <ReactFlowProvider>
+          <ViewerProvider isViewer={true}>
+            <WorkflowEngine
+              nodes={nodes}
+              edges={edges}
               updateNodeData={updateNodeData}
               executeNextNodes={executeNextNodes}
-              onBackToWorkspace={goToWorkspace}
-            />
-          </div>
-        </WorkflowEngine>
-      </ReactFlowProvider>
+              viewerItems={viewerItems}
+              onViewerItemsChange={handleViewerItemsChange}
+            >
+              <ViewerPage
+                viewerItems={viewerItems}
+                allNodes={nodes}
+                allEdges={edges}
+                onViewerItemsChange={handleViewerItemsChange}
+                updateNodeData={updateNodeData}
+                executeNextNodes={executeNextNodes}
+                onBackToWorkspace={goToWorkspace}
+              />
+            </WorkflowEngine>
+          </ViewerProvider>
+        </ReactFlowProvider>
+      </div>
     </div>
   );
 }

@@ -9,7 +9,8 @@ import {
   useReactFlow,
   Node,
   NodeChange,
-  EdgeChange
+  EdgeChange,
+  applyNodeChanges
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { invoke } from '@tauri-apps/api/core';
@@ -167,60 +168,43 @@ function Workspace({
   }, [nodes, edges, onNodesChange]);
 
   // 📝 노드 변경 처리 (삭제시 뷰어 정리 포함)
-  const onNodesChangeHandler = useCallback(
-    (changes: NodeChange[]) => {
-      // 노드 삭제시 뷰어에서도 제거 및 ID 관리
-      const deletedNodeIds = changes
-        .filter(change => change.type === 'remove')
-        .map(change => change.id);
+  // 📝 노드 변경 처리 (React Flow onNodesChange 오류 해결)
+const onNodesChangeHandler = useCallback(
+  (changes: NodeChange[]) => {
+  
+    
+    // 노드 삭제시 뷰어에서도 제거 및 ID 관리
+    const deletedNodeIds = changes
+      .filter(change => change.type === 'remove')
+      .map(change => change.id);
 
-      if (deletedNodeIds.length > 0) {
-        // NodeManager에서 ID 반납
-        deletedNodeIds.forEach(nodeId => {
-          nodeManager.releaseId(nodeId);
-        });
-        
-        // 삭제 후 남은 노드들의 ID 집합 계산
-        const remainingNodeIds = new Set(
-          nodes
-            .filter(node => !deletedNodeIds.includes(node.id))
-            .map(node => node.id)
-        );
-        
-        // 뷰어 목록 정리
-        cleanupViewerItems(remainingNodeIds);
-      }
-
-      // React Flow 스타일의 변경사항을 실제 노드 배열에 적용
-      let updatedNodes = [...nodes];
+    if (deletedNodeIds.length > 0) {
+      console.log('🗑️ Deleting nodes:', deletedNodeIds);
       
-      changes.forEach(change => {
-        switch (change.type) {
-          case 'position':
-            updatedNodes = updatedNodes.map(node =>
-              node.id === change.id
-                ? { ...node, position: change.position || node.position }
-                : node
-            );
-            break;
-          case 'select':
-            updatedNodes = updatedNodes.map(node =>
-              node.id === change.id
-                ? { ...node, selected: change.selected }
-                : node
-            );
-            break;
-          case 'remove':
-            updatedNodes = updatedNodes.filter(node => node.id !== change.id);
-            break;
-          // 다른 변경 타입들도 필요에 따라 추가
-        }
+      // NodeManager에서 ID 반납
+      deletedNodeIds.forEach(nodeId => {
+        nodeManager.releaseId(nodeId);
       });
       
-      onNodesChange(updatedNodes);
-    },
-    [nodes, onNodesChange, nodeManager, cleanupViewerItems]
-  );
+      // 삭제 후 남은 노드들의 ID 집합 계산
+      const remainingNodeIds = new Set(
+        nodes
+          .filter(node => !deletedNodeIds.includes(node.id))
+          .map(node => node.id)
+      );
+      
+      // 뷰어 목록 정리
+      cleanupViewerItems(remainingNodeIds);
+    }
+
+    // 🔧 수정: React Flow의 applyNodeChanges 사용하여 정확한 상태 업데이트
+    const updatedNodes = applyNodeChanges(changes, nodes);
+    
+    // 상태 업데이트
+    onNodesChange(updatedNodes);
+  },
+  [nodes, onNodesChange, nodeManager, cleanupViewerItems]
+);
 
   // 📝 엣지 변경 처리
   const onEdgesChangeHandler = useCallback(

@@ -324,9 +324,51 @@
   box-shadow: none;
 }
 
-/* 뷰어에서 핸들 숨기기 (연결선이 없으므로) */
+/* 🎯 핵심 수정: 뷰어에서 모든 Handle을 완전히 숨기고 제거 */
 .viewer-node-content .react-flow__handle {
   display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
+  width: 0 !important;
+  height: 0 !important;
+  position: absolute !important;
+  z-index: -1000 !important;
+}
+
+/* 🎯 Handle과 관련된 모든 요소들 숨김 강화 */
+.viewer-node-content [data-handleid],
+.viewer-node-content [data-handlepos],
+.viewer-node-content .react-flow__handle-top,
+.viewer-node-content .react-flow__handle-right,
+.viewer-node-content .react-flow__handle-bottom,
+.viewer-node-content .react-flow__handle-left,
+.viewer-node-content .react-flow__handle-source,
+.viewer-node-content .react-flow__handle-target {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
+  width: 0 !important;
+  height: 0 !important;
+  position: absolute !important;
+  z-index: -1000 !important;
+  left: -9999px !important;
+  top: -9999px !important;
+}
+
+/* 🎯 뷰어 전용 Handle 스타일 오버라이드 */
+.viewer-page .react-flow__handle,
+.viewer-page .react-flow__handle-top,
+.viewer-page .react-flow__handle-right,
+.viewer-page .react-flow__handle-bottom,
+.viewer-page .react-flow__handle-left,
+.viewer-page .react-flow__handle-source,
+.viewer-page .react-flow__handle-target {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
 }
 
 /* 에러 노드 스타일 */
