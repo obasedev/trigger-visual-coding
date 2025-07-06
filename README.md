@@ -221,6 +221,7 @@ my_new_node, // 이 한 줄만 추가
 - **프론트엔드**: `CamelCaseNode.tsx` 
 - **백엔드**: `snake_case_node.rs`
 - **함수명**: `snake_case_node()`
+- **워크스페이스 내에 보여지는 노드의 큰이름** : `Snake Case`
 - **노드 타입**: `camelCaseNode` (첫 글자 소문자)
 
 ### **🔥 절대 금지사항**:

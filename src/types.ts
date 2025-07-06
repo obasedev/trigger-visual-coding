@@ -111,6 +111,13 @@ export interface ConditionalNodeData extends BaseNodeData {
   result?: boolean;
 }
 
+// 🆕 ChatWebServerNode 데이터 타입 (올바른 위치)
+export interface ChatWebServerNodeData extends BaseNodeData {
+  port: string;
+  chatTitle: string;
+  text: string; // 🎯 textInput → text로 변경
+}
+
 // =====================================
 // BaseNode Props 타입 정의
 // =====================================
@@ -140,6 +147,8 @@ export interface BaseNodeProps<T extends BaseNodeData = BaseNodeData> {
   onAddToViewer?: () => void;
   onRemoveFromViewer?: () => void;
   isInViewer?: boolean;
+  // 🆕 커스텀 실행 버튼 아이콘
+  customExecuteIcon?: ReactNode;
 }
 
 export interface InfoRow {
@@ -215,5 +224,12 @@ export interface TextFileEditorNodeProps {
 export interface TextInputNodeProps {
   id: string;
   data: TextInputNodeData;
+  selected: boolean;
+}
+
+// 🆕 ChatWebServerNode Props 타입 (추가됨)
+export interface ChatWebServerNodeProps {
+  id: string;
+  data: ChatWebServerNodeData;
   selected: boolean;
 }

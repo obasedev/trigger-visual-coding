@@ -161,7 +161,9 @@ function BaseNode<T extends BaseNodeData = BaseNodeData>({
   // 🆕 뷰어 관련 props
   onAddToViewer,
   onRemoveFromViewer,
-  isInViewer = false
+  isInViewer = false,
+  // 🆕 커스텀 실행 버튼 아이콘
+  customExecuteIcon
 }: BaseNodeProps<T>) {
 
   // 🆕 Context에서 뷰어 기능 가져오기 (props가 없을 때 fallback)
@@ -261,9 +263,9 @@ function BaseNode<T extends BaseNodeData = BaseNodeData>({
               </button>
             )}
             
-            {/* 실행 버튼 */}
+            {/* 실행 버튼 - 🆕 커스텀 아이콘 지원 */}
             <button onClick={handleExecute} className="node-execute-button">
-              <Play size={12} />
+              {customExecuteIcon || <Play size={12} />}
             </button>
           </div>
         </div>

@@ -1,7 +1,8 @@
 /**
- * NodeManager.ts - 매우 간단한 노드 ID 관리 + 타이머 관리
+ * NodeManager.ts - 매우 간단한 노드 ID 관리 + 타이머 관리 (버그 수정 버전)
  * 역할: 오직 ID 생성과 재활용 + 타이머 정리!
  * 철학: "복잡하지 않게, 한 가지만 잘하자"
+ * 🔧 수정: ID 중복 등록 방지, 재활용 풀 정리, 상태 동기화 개선
  */
 
 class NodeManager {
@@ -13,43 +14,56 @@ class NodeManager {
   private activeTimers: Set<number> = new Set();
   
   constructor() {
-    console.log('🎯 NodeManager 초기화 (간단 버전 + 타이머 관리)');
+    console.log('🎯 NodeManager 초기화 (버그 수정 버전)');
   }
 
   /**
-   * 새 노드 ID 생성 (재활용 우선)
+   * 새 노드 ID 생성 (재활용 우선, 중복 방지)
    */
   public generateNewId(): number {
     let newId: number;
     
-    // 재활용 ID가 있으면 우선 사용
-    if (this.recycledIds.length > 0) {
-      const recycledId = this.recycledIds.pop()!;
-      newId = parseInt(recycledId);
-      console.log(`♻️ ID 재활용: ${newId}`);
-    } else {
-      // 없으면 새로 생성
-      newId = this.counter;
-      this.counter++;
-      console.log(`🆕 새 ID 생성: ${newId}`);
+    // 🔧 수정: 재활용 ID 검증 후 사용
+    while (this.recycledIds.length > 0) {
+      const recycledIdStr = this.recycledIds.pop()!;
+      const recycledId = parseInt(recycledIdStr);
+      
+      // 🎯 핵심 수정: 재활용 ID가 현재 사용 중이 아닌 경우에만 사용
+      if (!this.usedIds.has(recycledIdStr)) {
+        newId = recycledId;
+        this.usedIds.add(recycledIdStr);
+        console.log(`♻️ ID 재활용: ${newId} (검증 완료)`);
+        return newId;
+      } else {
+        console.log(`⚠️ ID ${recycledId} 재활용 건너뜀 (이미 사용 중)`);
+      }
     }
+    
+    // 재활용 가능한 ID가 없으면 새로 생성
+    newId = this.counter;
+    this.counter++;
+    console.log(`🆕 새 ID 생성: ${newId}`);
     
     this.usedIds.add(newId.toString());
     return newId;
   }
 
   /**
-   * 🆕 기존 ID를 NodeManager에 등록 (초기화시 사용)
+   * 🔧 수정: 기존 ID를 NodeManager에 등록 (중복 방지)
    */
   public registerExistingId(id: number): void {
     const idStr = id.toString();
     
+    // 🎯 핵심 수정: 이미 등록된 ID는 건너뛰기
     if (this.usedIds.has(idStr)) {
-      console.log(`⚠️ ID ${id}는 이미 등록됨`);
+      console.log(`⚠️ ID ${id}는 이미 등록됨 - 건너뛰기`);
       return;
     }
     
     this.usedIds.add(idStr);
+    
+    // 🔧 수정: 재활용 풀에서 해당 ID 제거 (중복 방지)
+    this.recycledIds = this.recycledIds.filter(recycledId => recycledId !== idStr);
     
     // counter를 최대값+1로 업데이트
     if (id >= this.counter) {
@@ -61,12 +75,14 @@ class NodeManager {
   }
 
   /**
-   * 🆕 여러 기존 ID들을 한번에 등록
+   * 🔧 수정: 여러 기존 ID들을 한번에 등록 (중복 제거)
    */
   public registerExistingIds(ids: number[]): void {
-    console.log(`📝 ${ids.length}개 기존 ID 등록 중...`);
+    // 🎯 핵심 수정: 중복 제거 후 등록
+    const uniqueIds = [...new Set(ids)].sort((a, b) => a - b);
+    console.log(`📝 ${uniqueIds.length}개 고유 ID 등록 중...`);
     
-    ids.forEach(id => {
+    uniqueIds.forEach(id => {
       this.registerExistingId(id);
     });
     
@@ -74,40 +90,48 @@ class NodeManager {
   }
 
   /**
-   * 🆕 노드 배열과 NodeManager 상태 동기화
+   * 🔧 수정: 노드 배열과 NodeManager 상태 동기화 (완전 재설정)
    */
   public syncWithNodes(nodes: any[]): void {
     console.log(`🔄 ${nodes.length}개 노드와 동기화 중...`);
     
-    // 기존 상태 초기화
+    // 🎯 핵심 수정: 완전히 상태 초기화
     this.usedIds.clear();
     this.recycledIds = [];
     this.counter = 1;
     
-    // 노드들의 ID 수집 및 등록
-    const nodeIds: number[] = [];
+    // 현재 노드들의 ID 수집
+    const currentNodeIds: number[] = [];
     nodes.forEach(node => {
       const numericId = parseInt(node.id);
       if (!isNaN(numericId)) {
-        nodeIds.push(numericId);
+        currentNodeIds.push(numericId);
       }
     });
     
-    // ID들을 정렬해서 순서대로 등록
-    nodeIds.sort((a, b) => a - b);
-    this.registerExistingIds(nodeIds);
+    // 🔧 수정: 중복 제거 후 등록
+    if (currentNodeIds.length > 0) {
+      this.registerExistingIds(currentNodeIds);
+    }
     
-    console.log(`✅ 동기화 완료: ${nodeIds.length}개 ID 등록`);
+    console.log(`✅ 동기화 완료: ${currentNodeIds.length}개 ID 등록`);
   }
 
   /**
-   * ID 반납 (재활용 풀에 추가)
+   * 🔧 수정: ID 반납 (중복 방지)
    */
   public releaseId(id: string | number): void {
     const idStr = typeof id === 'number' ? id.toString() : id;
     
+    // 🎯 핵심 수정: 사용 중인 ID만 반납 가능
     if (!this.usedIds.has(idStr)) {
-      console.warn(`⚠️ 이미 반납된 ID: ${idStr}`);
+      console.warn(`⚠️ ID ${idStr}는 사용 중이 아님 - 반납 건너뛰기`);
+      return;
+    }
+    
+    // 🔧 수정: 중복 방지 - 이미 재활용 풀에 있는지 확인
+    if (this.recycledIds.includes(idStr)) {
+      console.warn(`⚠️ ID ${idStr}는 이미 재활용 풀에 있음 - 건너뛰기`);
       return;
     }
     
@@ -118,7 +142,7 @@ class NodeManager {
   }
 
   /**
-   * 🆕 여러 ID들을 한번에 반납
+   * 🔧 수정: 여러 ID들을 한번에 반납 (중복 방지)
    */
   public releaseIds(ids: (string | number)[]): void {
     console.log(`🗑️ ${ids.length}개 ID 반납 중...`);
@@ -130,7 +154,7 @@ class NodeManager {
     this.debugStatus();
   }
 
-  // 🆕 타이머 관리 기능들
+  // 🆕 타이머 관리 기능들 (기존과 동일)
   
   /**
    * 타이머 등록 (메모리 누수 방지)
@@ -164,6 +188,21 @@ class NodeManager {
   }
 
   /**
+   * 🆕 재활용 풀 정리 (유효하지 않은 ID 제거)
+   */
+  public cleanRecycledPool(): void {
+    const beforeSize = this.recycledIds.length;
+    
+    // 🔧 현재 사용 중인 ID는 재활용 풀에서 제거
+    this.recycledIds = this.recycledIds.filter(id => !this.usedIds.has(id));
+    
+    const afterSize = this.recycledIds.length;
+    if (beforeSize !== afterSize) {
+      console.log(`🧹 재활용 풀 정리: ${beforeSize} → ${afterSize}개`);
+    }
+  }
+
+  /**
    * 현재 상태 확인 (디버깅용)
    */
   public getStatus(): { 
@@ -174,6 +213,9 @@ class NodeManager {
     usedIds: string[];
     recycledIds: string[];
   } {
+    // 🆕 상태 확인 시 재활용 풀 자동 정리
+    this.cleanRecycledPool();
+    
     return {
       used: this.usedIds.size,
       recycled: this.recycledIds.length,

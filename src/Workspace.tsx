@@ -76,21 +76,6 @@ function Workspace({
   const reactFlowInstance = useReactFlow();
   const nodeManager = getNodeManager();
 
-  // 🚀 초기 노드가 없으면 기본 노드 설정
-  useEffect(() => {
-    if (nodes.length === 0) {
-      console.log('🏗️ Setting up default nodes...');
-      onNodesChange(defaultNodes);
-      
-      // NodeManager에 기본 노드 ID 등록
-      defaultNodes.forEach(node => {
-        const numericId = parseInt(node.id);
-        if (!isNaN(numericId)) {
-          nodeManager.registerExistingId(numericId);
-        }
-      });
-    }
-  }, [nodes.length, onNodesChange, nodeManager]);
 
   // 🔄 노드 데이터 업데이트 함수 (App 상태 직접 수정)
   const updateNodeData = useCallback((nodeId: string, newData: Partial<BaseNodeData>) => {
