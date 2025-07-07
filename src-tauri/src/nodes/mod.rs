@@ -5,6 +5,7 @@ pub mod file_creator_node;
 pub mod text_file_editor_node;
 pub mod chat_web_server_node;  // 🆕 웹서버 노드 추가
 pub mod workflow_storage;
+pub mod qr_code_node;
 
 // 함수들을 재export (자동 등록을 위해)
 pub use start_node::start_node;
@@ -17,6 +18,7 @@ pub use chat_web_server_node::{
     get_chat_server_status
 };
 pub use workflow_storage::{save_workflow_to_desktop, load_workflow_from_desktop};
+pub use qr_code_node::qr_code_node;
 
 // 나중에 추가될 노드들을 위한 매크로 자동 생성 준비
 // 새로운 노드 추가 시:

@@ -75,6 +75,36 @@ function ChatWebServerNode({ id, data, selected }: ChatWebServerNodeProps) {
     }
     if (key === 'text' && !isTextInputConnected && data.text !== value) {
       updateNodeData(id, { text: value });
+      
+      // 🔧 수정: onBlur에서 메시지 전송 처리 (타이핑 중이 아닌 입력 완료 후)
+      if (value.trim() !== '' && isServerRunning) {
+        console.log(`📥 Node ${id} processing text input: "${value}"`);
+        
+        updateNodeData(id, {
+          outputData: {
+            ...data.outputData,
+            serverUrl: data.outputData?.serverUrl || serverUrl,
+            resultMessage: value
+          }
+        });
+
+        invoke('send_to_mobile', {
+          nodeId: id,
+          message: value
+        }).then((result) => {
+          console.log(`✅ send_to_mobile 성공:`, result);
+        }).catch((error) => {
+          console.error(`❌ send_to_mobile 실패:`, error);
+        });
+      } else if (value.trim() !== '' && !isServerRunning) {
+        updateNodeData(id, {
+          outputData: {
+            ...data.outputData,
+            serverUrl: data.outputData?.serverUrl || serverUrl,
+            resultMessage: value
+          }
+        });
+      }
     }
   };
 
@@ -102,10 +132,12 @@ function ChatWebServerNode({ id, data, selected }: ChatWebServerNodeProps) {
       // 서버 URL을 별도 상태에 저장 (고정)
       setServerUrl(resultData.server_url);
 
+      // 🔧 수정: outputData에 serverUrl도 함께 저장
       updateNodeData(id, {
         triggerExecution: undefined,
         outputData: {
           ...data.outputData,
+          serverUrl: resultData.server_url, // ✅ 핵심 수정: outputData에 serverUrl 추가
           receivedMessage: resultData.received_message || ''
         }
       });
@@ -126,13 +158,14 @@ function ChatWebServerNode({ id, data, selected }: ChatWebServerNodeProps) {
         triggerExecution: undefined,
         outputData: {
           ...data.outputData,
+          serverUrl: '', // 실패시 URL 클리어
           receivedMessage: ''
         }
       });
 
       setTimeout(() => { setStatus('waiting'); setResult(''); }, 2000);
     }
-  }, [id, data?.port, data?.chatTitle, updateNodeData]);
+  }, [id, data?.port, data?.chatTitle, data?.outputData, updateNodeData]);
 
   // ✅ 서버 중지 함수
   const stopServer = useCallback(async (): Promise<void> => {
@@ -154,6 +187,7 @@ function ChatWebServerNode({ id, data, selected }: ChatWebServerNodeProps) {
       updateNodeData(id, {
         outputData: {
           ...data.outputData,
+          serverUrl: '', // 서버 중지시 URL 클리어
           receivedMessage: ''
         }
       });
@@ -179,7 +213,7 @@ function ChatWebServerNode({ id, data, selected }: ChatWebServerNodeProps) {
         }
       }, 2000);
     }
-  }, [id, updateNodeData]);
+  }, [id, data?.outputData, updateNodeData]);
 
   // ✅ 실행 모드에 따른 동작 (토글 vs 시작)
   const executeNode = useCallback(async (mode: ExecutionMode = 'triggered'): Promise<void> => {
@@ -218,9 +252,11 @@ function ChatWebServerNode({ id, data, selected }: ChatWebServerNodeProps) {
           if (payload.node_id === id) {
             console.log(`📨 Node ${id} received message: ${payload.message}`);
             
+            // 🔧 수정: 메시지 받을 때 기존 serverUrl 값 보존
             updateNodeData(id, {
               outputData: {
                 ...data.outputData,
+                serverUrl: data.outputData?.serverUrl || serverUrl, // ✅ 핵심 수정: 기존 serverUrl 보존
                 receivedMessage: payload.message
               }
             });
@@ -246,38 +282,10 @@ function ChatWebServerNode({ id, data, selected }: ChatWebServerNodeProps) {
         console.log(`🔇 Chat message listener removed for node ${id}`);
       }
     };
-  }, [id, executeNextNodes]); // executeNextNodes 다시 추가 (트리거 작동용)
+  }, [id, executeNextNodes]); // 🔧 핵심 수정: 무한 루프 방지를 위해 의존성 배열에서 data.outputData, serverUrl, updateNodeData 제거
 
-  // 텍스트 입력 처리
-  useEffect(() => {
-    if (data?.text && data.text.trim() !== '' && isServerRunning) {
-      console.log(`📥 Node ${id} processing text input: "${data.text}"`);
-      
-      updateNodeData(id, {
-        outputData: {
-          ...data.outputData,
-          resultMessage: data.text
-        }
-      });
-
-      invoke('send_to_mobile', {
-        nodeId: id,
-        message: data.text
-      }).then((result) => {
-        console.log(`✅ send_to_mobile 성공:`, result);
-      }).catch((error) => {
-        console.error(`❌ send_to_mobile 실패:`, error);
-      });
-
-    } else if (data?.text && data.text.trim() !== '' && !isServerRunning) {
-      updateNodeData(id, {
-        outputData: {
-          ...data.outputData,
-          resultMessage: data.text
-        }
-      });
-    }
-  }, [data?.text, id, isServerRunning, updateNodeData]); // data.outputData 제거!
+  // 🔧 수정: 텍스트 입력 처리를 onBlur로 이동했으므로 이 useEffect 제거
+  // (텍스트가 변경될 때마다 실행되지 않고, 입력 완료 후에만 처리됨)
 
   // 컴포넌트 마운트시 서버 상태 초기화
   useEffect(() => {
@@ -354,7 +362,7 @@ function ChatWebServerNode({ id, data, selected }: ChatWebServerNodeProps) {
         nodeId={id}
         label="Server URL"
         icon={<Globe size={12} />}
-        value={serverUrl}
+        value={data.outputData?.serverUrl || serverUrl}
         handleId="serverUrl"
       />
 

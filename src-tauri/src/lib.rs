@@ -18,6 +18,7 @@ pub fn run() {
             get_chat_server_status,
             save_workflow_to_desktop,
             load_workflow_from_desktop,
+            qr_code_node
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
