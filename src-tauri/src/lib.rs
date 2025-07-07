@@ -13,9 +13,11 @@ pub fn run() {
             file_creator_node,
             text_file_editor_node,
             chat_web_server_node,
-            send_to_mobile,          // 🎯 추가
+            send_to_mobile,
             stop_chat_server_node,
             get_chat_server_status,
+            stop_chat_tunnel,        // 🆕 추가
+            get_chat_server_info,    // 🆕 추가
             save_workflow_to_desktop,
             load_workflow_from_desktop,
             qr_code_node

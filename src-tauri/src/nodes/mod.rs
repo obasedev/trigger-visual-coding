@@ -13,9 +13,11 @@ pub use file_creator_node::file_creator_node;
 pub use text_file_editor_node::text_file_editor_node;
 pub use chat_web_server_node::{
     chat_web_server_node, 
-    send_to_mobile,           // 🎯 추가
-    stop_chat_server_node, 
-    get_chat_server_status
+    send_to_mobile,           // 🎯 기존
+    stop_chat_server_node,    // 🎯 기존
+    get_chat_server_status,   // 🎯 기존
+    stop_chat_tunnel,         // 🆕 추가
+    get_chat_server_info      // 🆕 추가
 };
 pub use workflow_storage::{save_workflow_to_desktop, load_workflow_from_desktop};
 pub use qr_code_node::qr_code_node;
@@ -25,4 +27,3 @@ pub use qr_code_node::qr_code_node;
 // 1. 새 파일 생성 (예: my_new_node.rs)
 // 2. pub mod my_new_node; 추가
 // 3. pub use my_new_node::my_new_function; 추가
-// nodes/mod.rs - 노드 모듈 자동 등록 관리

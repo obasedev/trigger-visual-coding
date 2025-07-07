@@ -26,10 +26,12 @@ interface ChatWebServerNodeProps {
   selected: boolean;
 }
 
-// 백엔드 파라미터 타입 (단순화)
+// 백엔드 파라미터 타입 (enableGlobal 추가)
 interface ChatWebServerParams {
   port: number;
   chatTitle: string;
+  nodeId: string;
+  enableGlobal: boolean; // 🔧 글로벌 터널 옵션 추가
 }
 
 // 백엔드 결과 타입 (단순화)
@@ -39,6 +41,8 @@ interface ChatWebServerResult {
   status: string;
   message?: string;
   received_message?: string;
+  local_url?: string;
+  tunnel_status?: string;
 }
 
 function ChatWebServerNode({ id, data, selected }: ChatWebServerNodeProps) {
@@ -108,7 +112,7 @@ function ChatWebServerNode({ id, data, selected }: ChatWebServerNodeProps) {
     }
   };
 
-  // ✅ 서버 시작 함수
+  // ✅ 서버 시작 함수 (🔧 글로벌 터널 기본 활성화)
   const startServer = useCallback(async (): Promise<void> => {
     const currentPort = data?.port?.trim() || '8080';
     const currentChatTitle = data?.chatTitle?.trim() || 'Mobile Chat Room';
@@ -117,16 +121,18 @@ function ChatWebServerNode({ id, data, selected }: ChatWebServerNodeProps) {
     try {
       const portNumber = parseInt(currentPort) || 8080;
       
-      console.log(`💬 ChatWebServerNode ${id}: Starting chat server...`);
+      console.log(`💬 ChatWebServerNode ${id}: Starting global chat server...`);
 
+      // 🔧 핵심 수정: enableGlobal: true 추가하여 글로벌 터널 기본 활성화
       const resultData: ChatWebServerResult = await invoke('chat_web_server_node', {
         port: portNumber,
         chatTitle: currentChatTitle,
-        nodeId: id
+        nodeId: id,
+        enableGlobal: true // 🌐 글로벌 터널 기본 활성화!
       });
 
       setStatus('completed');
-      setResult(`Chat server running at ${resultData.server_url}`);
+      setResult(`Global chat server running at ${resultData.server_url}`);
       setIsServerRunning(true);
       
       // 서버 URL을 별도 상태에 저장 (고정)
@@ -218,7 +224,7 @@ function ChatWebServerNode({ id, data, selected }: ChatWebServerNodeProps) {
   // ✅ 실행 모드에 따른 동작 (토글 vs 시작)
   const executeNode = useCallback(async (mode: ExecutionMode = 'triggered'): Promise<void> => {
     if (mode === 'triggered') {
-      console.log(`🔗 ChatWebServerNode: Triggered execution - starting server`);
+      console.log(`🔗 ChatWebServerNode: Triggered execution - starting global server`);
       await startServer();
       executeNextNodes(id);
     } else {
@@ -226,7 +232,7 @@ function ChatWebServerNode({ id, data, selected }: ChatWebServerNodeProps) {
         console.log(`🔧 ChatWebServerNode: Manual execution - stopping server`);
         await stopServer();
       } else {
-        console.log(`🔧 ChatWebServerNode: Manual execution - starting server`);
+        console.log(`🔧 ChatWebServerNode: Manual execution - starting global server`);
         await startServer();
       }
     }
@@ -284,9 +290,6 @@ function ChatWebServerNode({ id, data, selected }: ChatWebServerNodeProps) {
     };
   }, [id, executeNextNodes]); // 🔧 핵심 수정: 무한 루프 방지를 위해 의존성 배열에서 data.outputData, serverUrl, updateNodeData 제거
 
-  // 🔧 수정: 텍스트 입력 처리를 onBlur로 이동했으므로 이 useEffect 제거
-  // (텍스트가 변경될 때마다 실행되지 않고, 입력 완료 후에만 처리됨)
-
   // 컴포넌트 마운트시 서버 상태 초기화
   useEffect(() => {
     const checkInitialServerStatus = async () => {
@@ -306,14 +309,14 @@ function ChatWebServerNode({ id, data, selected }: ChatWebServerNodeProps) {
   return (
     <BaseNode<ChatWebServerNodeData>
       id={id}
-      title="Mobile Chat Server"
-      icon={<MessageCircle size={16} stroke="white" />}
+      title="Global Mobile Chat Server" // 🔧 제목도 Global로 변경
+      icon={<Globe size={16} stroke="white" />} // 🔧 아이콘도 Globe로 변경
       status={status}
       selected={selected}
       onExecute={executeNode}
       data={data}
       result={result}
-      description="Starts a mobile-friendly chat server to receive messages"
+      description="Starts a global mobile-friendly chat server accessible worldwide" // 🔧 설명도 글로벌로 변경
       customExecuteIcon={isServerRunning ? <Square size={12} /> : <Play size={12} />}
     >
       {/* Chat Room Title - 맨 위로 이동 */}
@@ -360,7 +363,7 @@ function ChatWebServerNode({ id, data, selected }: ChatWebServerNodeProps) {
 
       <OutputField
         nodeId={id}
-        label="Server URL"
+        label="Global Server URL" // 🔧 라벨도 Global로 변경
         icon={<Globe size={12} />}
         value={data.outputData?.serverUrl || serverUrl}
         handleId="serverUrl"
@@ -385,10 +388,10 @@ function ChatWebServerNode({ id, data, selected }: ChatWebServerNodeProps) {
   );
 }
 
-// 사이드바 자동 발견을 위한 설정 정보
+// 사이드바 자동 발견을 위한 설정 정보 (🔧 글로벌로 변경)
 export const config: NodeConfig = {
   type: 'chatWebServerNode',
-  label: 'Mobile Chat Server',
+  label: 'Global Mobile Chat Server', // 🔧 라벨도 Global로 변경
   color: '#00BCD4',
   category: 'Network',
   settings: [

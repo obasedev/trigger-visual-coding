@@ -5,8 +5,9 @@ use std::sync::Arc;
 use tokio::sync::{RwLock, broadcast};
 use warp::Filter;
 use tauri::{AppHandle, Emitter};
-use futures_util::{sink::SinkExt, stream::StreamExt}; // 🎯 StreamExt 추가
-use tauri::Manager;
+use futures_util::{sink::SinkExt, stream::StreamExt};
+use tauri_plugin_shell::{ShellExt, process::CommandEvent};
+use regex::Regex;
 
 // 💬 채팅 웹서버 노드 구조체들
 
@@ -17,6 +18,9 @@ pub struct ChatWebServerResult {
     status: String,
     message: Option<String>,
     received_message: Option<String>,
+    // 🆕 글로벌 터널 정보
+    local_url: Option<String>,
+    tunnel_status: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -35,22 +39,34 @@ struct ChatEvent {
 // 🗂️ 실행 중인 채팅 서버들을 추적하는 전역 상태
 type ChatServerRegistry = Arc<RwLock<HashMap<String, ChatServerHandle>>>;
 
+// 🆕 글로벌 터널 프로세스 관리 - Tauri v2 호환
+type TunnelRegistry = Arc<RwLock<HashMap<String, tauri_plugin_shell::process::CommandChild>>>;
+
 #[derive(Debug)]
 struct ChatServerHandle {
     port: u16,
     server_url: String,
+    local_url: Option<String>, // 🆕 로컬 URL 별도 저장
     status: String,
     node_id: String,
     app_handle: AppHandle,
     abort_handle: tokio::task::AbortHandle,
-    websocket_sender: broadcast::Sender<String>, // WebSocket 브로드캐스트 채널
+    websocket_sender: broadcast::Sender<String>,
+    // 🆕 터널 관련 정보
+    has_tunnel: bool,
+    tunnel_url: Option<String>,
 }
 
-// 전역 채팅 서버 레지스트리
+// 전역 레지스트리들
 static CHAT_SERVER_REGISTRY: std::sync::OnceLock<ChatServerRegistry> = std::sync::OnceLock::new();
+static TUNNEL_REGISTRY: std::sync::OnceLock<TunnelRegistry> = std::sync::OnceLock::new();
 
 fn get_chat_server_registry() -> &'static ChatServerRegistry {
     CHAT_SERVER_REGISTRY.get_or_init(|| Arc::new(RwLock::new(HashMap::new())))
+}
+
+fn get_tunnel_registry() -> &'static TunnelRegistry {
+    TUNNEL_REGISTRY.get_or_init(|| Arc::new(RwLock::new(HashMap::new())))
 }
 
 // 🔌 사용 가능한 포트 찾기 함수
@@ -105,7 +121,110 @@ fn is_apipa_address(ip: std::net::Ipv4Addr) -> bool {
     octets[0] == 169 && octets[1] == 254
 }
 
-// 📱 모바일 친화적 채팅 HTML 생성 함수 (🎯 문구 수정 및 WebSocket 개선)
+// 🆕 클라우드플레어 터널 시작 함수 - Tauri v2 호환
+async fn start_cloudflare_tunnel(app: AppHandle, port: u16, node_id: String) -> Result<String, String> {
+    println!("🌐 Starting Cloudflare tunnel for port {} (node: {})", port, node_id);
+    
+    // 🔧 Tauri v2: cloudflared 실행
+    let sidecar_command = app.shell().sidecar("cloudflared")
+        .map_err(|e| format!("Failed to create cloudflared command: {}", e))?;
+    
+    let (mut rx, child) = sidecar_command
+        .args(["tunnel", "--url", &format!("http://localhost:{}", port)])
+        .spawn()
+        .map_err(|e| format!("Failed to spawn cloudflared: {}", e))?;
+
+    // 🔧 Tauri v2: 프로세스 저장 (CommandChild 타입)
+    {
+        let tunnel_registry = get_tunnel_registry();
+        let mut tunnels = tunnel_registry.write().await;
+        tunnels.insert(node_id.clone(), child);
+    }
+
+    // URL 추출을 위한 타임아웃 설정 (30초)
+    let timeout = tokio::time::Duration::from_secs(30);
+    let mut global_url = String::new();
+    
+    println!("⏳ Waiting for tunnel URL (timeout: 30s)...");
+    
+    // URL 파싱을 위한 정규식
+    let url_regex = Regex::new(r"https://[a-zA-Z0-9-]+\.trycloudflare\.com")
+        .map_err(|e| format!("Failed to create regex: {}", e))?;
+
+    // 타임아웃과 함께 로그 읽기
+    match tokio::time::timeout(timeout, async {
+        while let Some(event) = rx.recv().await {
+            match event {
+                // 🔧 Tauri v2: CommandEvent::Stdout는 Vec<u8> 반환
+                CommandEvent::Stdout(line_bytes) => {
+                    // 🔧 바이트를 UTF-8 문자열로 변환
+                    let line = String::from_utf8_lossy(&line_bytes);
+                    println!("📋 cloudflared stdout: {}", line);
+                    
+                    // URL 추출
+                    if let Some(captures) = url_regex.find(&line) {
+                        global_url = captures.as_str().to_string();
+                        println!("🎯 Found tunnel URL in stdout: {}", global_url);
+                        break;
+                    }
+                },
+                // 🔧 Tauri v2: CommandEvent::Stderr도 Vec<u8> 반환
+                CommandEvent::Stderr(line_bytes) => {
+                    let line = String::from_utf8_lossy(&line_bytes);
+                    println!("⚠️ cloudflared stderr: {}", line);
+                    
+                    // 🔧 핵심 수정: stderr에서도 URL 찾기!
+                    if let Some(captures) = url_regex.find(&line) {
+                        global_url = captures.as_str().to_string();
+                        println!("🎯 Found tunnel URL in stderr: {}", global_url);
+                        break;
+                    }
+                },
+                _ => {} // 다른 이벤트들 무시
+            }
+        }
+        
+        if global_url.is_empty() {
+            Err("No tunnel URL found in cloudflared output".to_string())
+        } else {
+            Ok(global_url)
+        }
+    }).await {
+        Ok(result) => result,
+        Err(_) => {
+            // 타임아웃 발생 - 프로세스 정리
+            let _ = stop_cloudflare_tunnel(node_id).await;
+            Err("Timeout waiting for tunnel URL".to_string())
+        }
+    }
+}
+
+// 🆕 클라우드플레어 터널 중지 함수 - Tauri v2 호환
+async fn stop_cloudflare_tunnel(node_id: String) -> Result<(), String> {
+    let tunnel_registry = get_tunnel_registry();
+    let mut tunnels = tunnel_registry.write().await;
+    
+    if let Some(mut child) = tunnels.remove(&node_id) {
+        println!("🛑 Stopping Cloudflare tunnel for node {}", node_id);
+        
+        // 🔧 Tauri v2: CommandChild::kill() 사용
+        match child.kill() {
+            Ok(_) => {
+                println!("✅ Tunnel process terminated");
+                Ok(())
+            }
+            Err(e) => {
+                println!("⚠️ Failed to kill tunnel process: {}", e);
+                Err(format!("Failed to stop tunnel: {}", e))
+            }
+        }
+    } else {
+        println!("⚠️ No tunnel process found for node {}", node_id);
+        Ok(()) // 이미 중지됨
+    }
+}
+
+// 📱 모바일 친화적 채팅 HTML 생성 함수 (기존과 동일)
 fn create_mobile_chat_html(chat_title: String, server_port: u16) -> String {
     format!(
         r#"<!DOCTYPE html>
@@ -279,7 +398,7 @@ fn create_mobile_chat_html(chat_title: String, server_port: u16) -> String {
             }}
             
             .message-input {{
-                font-size: 16px; /* iOS 줌 방지 */
+                font-size: 16px;
             }}
         }}
     </style>
@@ -291,7 +410,6 @@ fn create_mobile_chat_html(chat_title: String, server_port: u16) -> String {
     
     <div class="chat-container">
         <div class="message-display">
-            <!-- 📱 모바일에서 보낸 마지막 메시지 -->
             <div class="message-section sent">
                 <div class="message-label">📱 내가 보낸 메시지:</div>
                 <div class="message-content" id="sentMessage">
@@ -299,7 +417,6 @@ fn create_mobile_chat_html(chat_title: String, server_port: u16) -> String {
                 </div>
             </div>
             
-            <!-- 💻 컴퓨터에서 보낸 메시지 (🎯 문구 수정) -->
             <div class="message-section received">
                 <div class="message-label">💻 컴퓨터에서 보낸 메시지:</div>
                 <div class="message-content" id="receivedMessage">
@@ -339,7 +456,6 @@ fn create_mobile_chat_html(chat_title: String, server_port: u16) -> String {
         let reconnectAttempts = 0;
         const maxReconnectAttempts = 5;
         
-        // 🚀 WebSocket 연결 설정 (🎯 개선된 재연결 로직)
         function connectWebSocket() {{
             const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             const wsUrl = `${{wsProtocol}}//${{window.location.host}}/ws`;
@@ -353,12 +469,11 @@ fn create_mobile_chat_html(chat_title: String, server_port: u16) -> String {
                     console.log('✅ WebSocket 연결됨');
                     wsStatus.textContent = 'WebSocket 연결됨 ✅';
                     wsStatus.className = 'websocket-status websocket-connected';
-                    reconnectAttempts = 0; // 성공시 재연결 카운터 리셋
+                    reconnectAttempts = 0;
                 }};
                 
                 websocket.onmessage = function(event) {{
                     console.log('💻 컴퓨터에서 메시지 받음:', event.data);
-                    // 🎯 실시간으로 화면에 표시
                     receivedMessageDiv.innerHTML = event.data;
                     receivedMessageDiv.scrollIntoView({{ behavior: 'smooth' }});
                 }};
@@ -368,10 +483,9 @@ fn create_mobile_chat_html(chat_title: String, server_port: u16) -> String {
                     wsStatus.textContent = 'WebSocket 연결 해제됨 ❌';
                     wsStatus.className = 'websocket-status websocket-disconnected';
                     
-                    // 🎯 개선된 재연결 로직
                     if (reconnectAttempts < maxReconnectAttempts) {{
                         reconnectAttempts++;
-                        const delay = Math.min(1000 * Math.pow(2, reconnectAttempts - 1), 30000); // 지수 백오프
+                        const delay = Math.min(1000 * Math.pow(2, reconnectAttempts - 1), 30000);
                         console.log(`🔄 ${{delay/1000}}초 후 재연결 시도 (${{reconnectAttempts}}/${{maxReconnectAttempts}})`);
                         wsStatus.textContent = `${{delay/1000}}초 후 재연결... (${{reconnectAttempts}}/${{maxReconnectAttempts}})`;
                         setTimeout(connectWebSocket, delay);
@@ -394,7 +508,6 @@ fn create_mobile_chat_html(chat_title: String, server_port: u16) -> String {
             }}
         }}
         
-        // 메시지 전송 함수
         async function sendMessage() {{
             const message = messageInput.value.trim();
             if (!message) return;
@@ -430,7 +543,6 @@ fn create_mobile_chat_html(chat_title: String, server_port: u16) -> String {
             sendButton.textContent = '전송';
         }}
         
-        // 이벤트 리스너
         sendButton.addEventListener('click', sendMessage);
         
         messageInput.addEventListener('keypress', function(e) {{
@@ -439,10 +551,7 @@ fn create_mobile_chat_html(chat_title: String, server_port: u16) -> String {
             }}
         }});
         
-        // 🎯 즉시 WebSocket 연결 시작
         connectWebSocket();
-        
-        // 포커스 설정
         messageInput.focus();
         
         console.log('📱 모바일 채팅 클라이언트 초기화 완료');
@@ -453,23 +562,24 @@ fn create_mobile_chat_html(chat_title: String, server_port: u16) -> String {
     )
 }
 
-// 💬 채팅 서버 시작 함수 (🎯 WebSocket 개선)
+// 💬 채팅 서버 시작 함수 (🔧 터널 기능 통합)
 async fn start_chat_server(
     port: u16,
     chat_title: String,
     node_id: String,
     app_handle: AppHandle,
+    enable_global: bool, // 🆕 글로벌 터널 옵션
 ) -> Result<ChatWebServerResult, String> {
     let actual_port = find_available_port(port)?;
     let local_ips = get_local_ip_addresses();
     
-    let server_url = if let Some(first_ip) = local_ips.first() {
+    let local_url = if let Some(first_ip) = local_ips.first() {
         format!("http://{}:{}", first_ip, actual_port)
     } else {
         format!("http://127.0.0.1:{}", actual_port)
     };
     
-    // 🎯 WebSocket 브로드캐스트 채널 생성 (더 큰 버퍼)
+    // 🎯 WebSocket 브로드캐스트 채널 생성
     let (websocket_tx, _) = broadcast::channel::<String>(1000);
     let websocket_tx_clone = websocket_tx.clone();
     
@@ -493,7 +603,6 @@ async fn start_chat_server(
             let app_handle = app_handle_clone.clone();
             let message = chat_msg.message.clone();
             
-            // 🚀 실시간 이벤트 전송
             tokio::spawn(async move {
                 let chat_event = ChatEvent {
                     node_id: node_id.clone(),
@@ -518,7 +627,7 @@ async fn start_chat_server(
             }))
         });
     
-    // 🎯 개선된 WebSocket 라우트
+    // WebSocket 라우트
     let websocket_tx_for_route = websocket_tx_clone.clone();
     let websocket_route = warp::path("ws")
         .and(warp::ws())
@@ -531,11 +640,9 @@ async fn start_chat_server(
                 let mut rx = tx.subscribe();
                 
                 async move {
-                    // 🎯 메시지 브로드캐스트 수신 및 클라이언트로 전송
                     while let Ok(message) = rx.recv().await {
                         println!("📱 WebSocket으로 메시지 전송: {}", message);
                         
-                        // 🚀 실제 WebSocket 메시지 전송
                         if let Err(e) = ws_sender.send(warp::ws::Message::text(message)).await {
                             println!("❌ WebSocket 클라이언트 연결 해제됨: {}", e);
                             break;
@@ -558,7 +665,7 @@ async fn start_chat_server(
         .parse()
         .map_err(|e| format!("Invalid address: {}", e))?;
     
-    // 🚀 서버 시작 (중단 가능한 태스크로)
+    // 🚀 서버 시작
     let server_key = format!("chat_server_{}", actual_port);
     
     let server_task = tokio::spawn(async move {
@@ -567,18 +674,51 @@ async fn start_chat_server(
         println!("🛑 채팅 서버 중지됨: {}", addr);
     });
     
-    // AbortHandle 저장
     let abort_handle = server_task.abort_handle();
+    
+    // 🆕 글로벌 터널 시작 (선택적)
+    let final_server_url;
+    let tunnel_url;
+    let tunnel_status;
+    
+    if enable_global {
+        println!("🌐 Starting global tunnel...");
+        
+        // 로컬 서버가 시작될 시간을 줌
+        tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+        
+        match start_cloudflare_tunnel(app_handle.clone(), actual_port, node_id.clone()).await {
+            Ok(global_url) => {
+                println!("✅ Global tunnel ready: {}", global_url);
+                final_server_url = global_url.clone();
+                tunnel_url = Some(global_url);
+                tunnel_status = Some("active".to_string());
+            }
+            Err(e) => {
+                println!("❌ Failed to start global tunnel: {}", e);
+                final_server_url = local_url.clone();
+                tunnel_url = None;
+                tunnel_status = Some(format!("failed: {}", e));
+            }
+        }
+    } else {
+        final_server_url = local_url.clone();
+        tunnel_url = None;
+        tunnel_status = Some("disabled".to_string());
+    }
     
     // 서버 정보 등록
     let handle = ChatServerHandle {
         port: actual_port,
-        server_url: server_url.clone(),
+        server_url: final_server_url.clone(),
+        local_url: Some(local_url.clone()),
         status: "running".to_string(),
         node_id: node_id.clone(),
         app_handle,
         abort_handle,
-        websocket_sender: websocket_tx, // WebSocket 브로드캐스트 채널 저장
+        websocket_sender: websocket_tx,
+        has_tunnel: enable_global && tunnel_url.is_some(),
+        tunnel_url: tunnel_url.clone(),
     };
     
     {
@@ -589,39 +729,52 @@ async fn start_chat_server(
     
     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
     
-    println!("✅ WebSocket 채팅 서버 시작 완료: {}", server_url);
+    println!("✅ WebSocket 채팅 서버 시작 완료: {}", final_server_url);
     if local_ips.len() > 1 {
         println!("   다른 사용 가능한 IP들: {:?}", &local_ips[1..]);
     }
     
-    let message = format!("실시간 WebSocket 채팅 서버가 시작되었으며 모든 기기에서 {}로 접근 가능합니다", server_url);
+    let message = if enable_global {
+        if tunnel_url.is_some() {
+            format!("글로벌 채팅 서버가 {}로 시작되었으며 전세계에서 접근 가능합니다", final_server_url)
+        } else {
+            format!("로컬 채팅 서버가 {}로 시작되었습니다 (글로벌 터널 실패)", final_server_url)
+        }
+    } else {
+        format!("로컬 채팅 서버가 {}로 시작되었으며 같은 네트워크에서 접근 가능합니다", final_server_url)
+    };
     
     Ok(ChatWebServerResult {
-        server_url,
+        server_url: final_server_url,
         actual_port,
         status: "running".to_string(),
         message: Some(message),
         received_message: None,
+        local_url: Some(local_url),
+        tunnel_status,
     })
 }
 
-// 🎯 Tauri 명령 함수
+// 🎯 Tauri 명령 함수 (🔧 글로벌 옵션 추가)
 #[tauri::command]
 pub async fn chat_web_server_node(
     app_handle: AppHandle,
     port: u16,
     chat_title: String,
     node_id: Option<String>,
+    enable_global: Option<bool>, // 🆕 글로벌 터널 옵션
 ) -> Result<ChatWebServerResult, String> {
     let node_id = node_id.unwrap_or_else(|| "unknown".to_string());
+    let enable_global = enable_global.unwrap_or(false);
     
-    println!("💬 ChatWebServerNode: 포트 {}에서 '{}' 채팅 서버 시작 중", port, chat_title);
+    println!("💬 ChatWebServerNode: 포트 {}에서 '{}' 채팅 서버 시작 중 (글로벌: {})", 
+             port, chat_title, enable_global);
     
     if chat_title.trim().is_empty() {
         return Err("Chat title cannot be empty".to_string());
     }
     
-    match start_chat_server(port, chat_title, node_id, app_handle).await {
+    match start_chat_server(port, chat_title, node_id, app_handle, enable_global).await {
         Ok(result) => {
             println!("✅ ChatWebServerNode: 채팅 서버 시작 완료 - {}", result.server_url);
             Ok(result)
@@ -633,7 +786,7 @@ pub async fn chat_web_server_node(
     }
 }
 
-// 🚀 모바일로 메시지 전송 함수 (🎯 개선된 에러 처리)
+// 🚀 모바일로 메시지 전송 함수 (기존과 동일)
 #[tauri::command]
 pub async fn send_to_mobile(node_id: String, message: String) -> Result<String, String> {
     println!("📱 SendToMobile: 노드 {}로 메시지 전송 중 - '{}'", node_id, message);
@@ -641,13 +794,11 @@ pub async fn send_to_mobile(node_id: String, message: String) -> Result<String, 
     let registry = get_chat_server_registry();
     let servers = registry.read().await;
     
-    // 해당 노드의 서버 찾기
     let server_handle = servers
         .values()
         .find(|handle| handle.node_id == node_id);
     
     if let Some(handle) = server_handle {
-        // 🎯 WebSocket으로 메시지 브로드캐스트
         match handle.websocket_sender.send(message.clone()) {
             Ok(receiver_count) => {
                 println!("✅ {}개의 WebSocket 클라이언트에게 메시지 전송됨", receiver_count);
@@ -669,7 +820,7 @@ pub async fn send_to_mobile(node_id: String, message: String) -> Result<String, 
     }
 }
 
-// 🛑 개별 채팅 서버 중지 함수
+// 🛑 개별 채팅 서버 중지 함수 (🔧 터널도 함께 중지)
 #[tauri::command]
 pub async fn stop_chat_server_node(node_id: String) -> Result<String, String> {
     println!("🛑 StopChatServerNode: 노드 {} 서버 중지 중", node_id);
@@ -677,21 +828,26 @@ pub async fn stop_chat_server_node(node_id: String) -> Result<String, String> {
     let registry = get_chat_server_registry();
     let mut servers = registry.write().await;
     
-    // 해당 노드의 서버 찾기
     let server_key_to_remove = servers
         .iter()
         .find(|(_, handle)| handle.node_id == node_id)
         .map(|(key, _)| key.clone());
     
     if let Some(server_key) = server_key_to_remove {
-        // 서버 레지스트리에서 제거
         if let Some(handle) = servers.remove(&server_key) {
-            // 🚀 실제 서버 태스크 중단
+            // 🚀 서버 태스크 중단
             handle.abort_handle.abort();
+            
+            // 🆕 터널도 중지
+            if handle.has_tunnel {
+                if let Err(e) = stop_cloudflare_tunnel(node_id.clone()).await {
+                    println!("⚠️ Failed to stop tunnel: {}", e);
+                }
+            }
             
             println!("✅ 노드 {}의 채팅 서버 중지됨 (포트: {})", node_id, handle.port);
             
-            // 서버 중지 이벤트 전송 (선택적)
+            // 서버 중지 이벤트 전송
             if let Err(e) = handle.app_handle.emit("chat-server-stopped", &serde_json::json!({
                 "node_id": node_id,
                 "port": handle.port,
@@ -700,7 +856,13 @@ pub async fn stop_chat_server_node(node_id: String) -> Result<String, String> {
                 eprintln!("⚠️ 서버 중지 이벤트 전송 실패: {}", e);
             }
             
-            Ok(format!("채팅 서버가 성공적으로 중지되었습니다 (포트 {}에서 실행 중이었음)", handle.port))
+            let message = if handle.has_tunnel {
+                format!("채팅 서버와 글로벌 터널이 성공적으로 중지되었습니다 (포트 {}에서 실행 중이었음)", handle.port)
+            } else {
+                format!("채팅 서버가 성공적으로 중지되었습니다 (포트 {}에서 실행 중이었음)", handle.port)
+            };
+            
+            Ok(message)
         } else {
             Err(format!("노드 {}의 서버 제거 실패", node_id))
         }
@@ -710,7 +872,35 @@ pub async fn stop_chat_server_node(node_id: String) -> Result<String, String> {
     }
 }
 
-// 🔍 특정 노드의 서버 상태 확인 함수
+// 🆕 터널만 중지하는 함수
+#[tauri::command]
+pub async fn stop_chat_tunnel(node_id: String) -> Result<String, String> {
+    println!("🛑 StopChatTunnel: 노드 {} 터널 중지 중", node_id);
+    
+    match stop_cloudflare_tunnel(node_id.clone()).await {
+        Ok(_) => {
+            // 서버 핸들에서 터널 상태 업데이트
+            let registry = get_chat_server_registry();
+            let mut servers = registry.write().await;
+            
+            for (_, handle) in servers.iter_mut() {
+                if handle.node_id == node_id {
+                    handle.has_tunnel = false;
+                    handle.tunnel_url = None;
+                    handle.server_url = handle.local_url.clone().unwrap_or_else(|| 
+                        format!("http://localhost:{}", handle.port)
+                    );
+                    break;
+                }
+            }
+            
+            Ok("Tunnel stopped successfully".to_string())
+        }
+        Err(e) => Err(e)
+    }
+}
+
+// 🔍 특정 노드의 서버 상태 확인 함수 (기존과 동일)
 #[tauri::command]
 pub async fn get_chat_server_status(node_id: String) -> Result<bool, String> {
     let registry = get_chat_server_registry();
@@ -721,6 +911,29 @@ pub async fn get_chat_server_status(node_id: String) -> Result<bool, String> {
         .any(|handle| handle.node_id == node_id && handle.status == "running");
     
     Ok(is_running)
+}
+
+// 🆕 서버 정보 가져오기 함수
+#[tauri::command]
+pub async fn get_chat_server_info(node_id: String) -> Result<serde_json::Value, String> {
+    let registry = get_chat_server_registry();
+    let servers = registry.read().await;
+    
+    if let Some(handle) = servers.values().find(|h| h.node_id == node_id) {
+        Ok(serde_json::json!({
+            "running": true,
+            "port": handle.port,
+            "server_url": handle.server_url,
+            "local_url": handle.local_url,
+            "has_tunnel": handle.has_tunnel,
+            "tunnel_url": handle.tunnel_url,
+            "status": handle.status
+        }))
+    } else {
+        Ok(serde_json::json!({
+            "running": false
+        }))
+    }
 }
 
 // 🧹 정리 함수들
@@ -739,9 +952,24 @@ pub async fn stop_all_chat_servers() {
     // 모든 서버 태스크 중단
     for (_, handle) in servers.iter() {
         handle.abort_handle.abort();
+        
+        // 터널도 중지
+        if handle.has_tunnel {
+            let _ = stop_cloudflare_tunnel(handle.node_id.clone()).await;
+        }
+        
         println!("🛑 서버 중지됨: 포트 {}", handle.port);
     }
     
+    // 🔧 Tauri v2: 모든 터널 프로세스 정리
+    let tunnel_registry = get_tunnel_registry();
+    let mut tunnels = tunnel_registry.write().await;
+    
+    for (node_id, mut child) in tunnels.drain() {
+        let _ = child.kill();
+        println!("🛑 터널 중지됨: 노드 {}", node_id);
+    }
+    
     servers.clear();
-    println!("🧹 모든 채팅 서버가 정리되었습니다");
+    println!("🧹 모든 채팅 서버와 터널이 정리되었습니다");
 }

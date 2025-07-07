@@ -277,6 +277,7 @@ dependencies = [
  "futures",
  "futures-util",
  "image 0.24.9",
+ "lazy_static",
  "local-ip-address",
  "qrcode",
  "regex",
