@@ -1,7 +1,7 @@
 // src-tauri/src/nodes/file_path_node.rs
-use tauri::command;
-use std::path::{Path, PathBuf};
 use std::fs;
+use std::path::{Path, PathBuf};
+use tauri::command;
 
 #[command]
 pub async fn file_path_node(file_paths: Vec<String>) -> Result<String, String> {
@@ -17,12 +17,12 @@ pub async fn file_path_node(file_paths: Vec<String>) -> Result<String, String> {
 
     for path_str in file_paths {
         println!("🔍 경로 검증 중: {}", path_str);
-        
+
         match verify_and_normalize_path(&path_str) {
             Ok(normalized_path) => {
                 verified_paths.push(normalized_path);
                 println!("✅ 유효한 경로: {}", path_str);
-            },
+            }
             Err(error) => {
                 errors.push(format!("❌ {}: {}", path_str, error));
                 println!("❌ 유효하지 않은 경로: {} - {}", path_str, error);
@@ -33,8 +33,10 @@ pub async fn file_path_node(file_paths: Vec<String>) -> Result<String, String> {
     // 결과 처리
     if verified_paths.is_empty() {
         let error_summary = if errors.len() > 3 {
-            format!("모든 파일이 유효하지 않습니다.\n주요 오류:\n{}", 
-                   errors.into_iter().take(3).collect::<Vec<_>>().join("\n"))
+            format!(
+                "모든 파일이 유효하지 않습니다.\n주요 오류:\n{}",
+                errors.into_iter().take(3).collect::<Vec<_>>().join("\n")
+            )
         } else {
             format!("모든 파일이 유효하지 않습니다.\n{}", errors.join("\n"))
         };
@@ -43,8 +45,11 @@ pub async fn file_path_node(file_paths: Vec<String>) -> Result<String, String> {
 
     // 성공한 경로들을 줄바꿈으로 연결
     let result = verified_paths.join("\n");
-    
-    println!("✅ FilePathNode 완료: {}개 파일 검증됨", verified_paths.len());
+
+    println!(
+        "✅ FilePathNode 완료: {}개 파일 검증됨",
+        verified_paths.len()
+    );
     if !errors.is_empty() {
         println!("⚠️ {}개 파일에서 오류 발생", errors.len());
     }
@@ -65,12 +70,12 @@ fn verify_and_normalize_path(path_str: &str) -> Result<String, String> {
         // 파일명만 있는 경우, 일반적인 위치들에서 찾기
         let search_paths = vec![
             dirs::desktop_dir(),
-            dirs::download_dir(), 
+            dirs::download_dir(),
             dirs::document_dir(),
             dirs::home_dir(),
             std::env::current_dir().ok(),
         ];
-        
+
         for search_dir in search_paths.into_iter().flatten() {
             let potential_path = search_dir.join(&path);
             if potential_path.exists() && potential_path.is_file() {
@@ -79,10 +84,13 @@ fn verify_and_normalize_path(path_str: &str) -> Result<String, String> {
                 break;
             }
         }
-        
+
         // 여전히 찾을 수 없으면 에러
         if !path.exists() {
-            return Err(format!("파일을 찾을 수 없습니다: '{}' (검색 위치: 바탕화면, 다운로드, 문서, 홈 폴더)", path_str));
+            return Err(format!(
+                "파일을 찾을 수 없습니다: '{}' (검색 위치: 바탕화면, 다운로드, 문서, 홈 폴더)",
+                path_str
+            ));
         }
     }
 
@@ -122,7 +130,7 @@ fn verify_and_normalize_path(path_str: &str) -> Result<String, String> {
             if metadata.permissions().readonly() {
                 println!("⚠️ 읽기 전용 파일: {}", normalized_path.display());
             }
-        },
+        }
         Err(_) => {
             return Err("파일 정보를 읽을 수 없습니다".to_string());
         }
@@ -130,7 +138,7 @@ fn verify_and_normalize_path(path_str: &str) -> Result<String, String> {
 
     // 경로를 문자열로 변환 (크로스 플랫폼 호환성)
     let path_string = normalized_path.to_string_lossy().to_string();
-    
+
     // Windows 경로를 Unix 스타일로 변환 (선택적)
     let unified_path = if cfg!(windows) {
         // Windows에서는 백슬래시를 슬래시로 변환 (선택사항)
@@ -144,35 +152,35 @@ fn verify_and_normalize_path(path_str: &str) -> Result<String, String> {
 
 fn normalize_path_manually(path: &Path) -> Result<PathBuf, String> {
     let mut components = Vec::new();
-    
+
     for component in path.components() {
         match component {
             std::path::Component::Prefix(_prefix) => {
                 components.push(component.as_os_str().to_string_lossy().to_string());
-            },
+            }
             std::path::Component::RootDir => {
                 components.push("/".to_string());
-            },
+            }
             std::path::Component::CurDir => {
                 // "." 는 무시
                 continue;
-            },
+            }
             std::path::Component::ParentDir => {
                 // ".." 는 이전 컴포넌트 제거
                 if !components.is_empty() {
                     components.pop();
                 }
-            },
+            }
             std::path::Component::Normal(name) => {
                 components.push(name.to_string_lossy().to_string());
             }
         }
     }
-    
+
     if components.is_empty() {
         return Err("유효하지 않은 경로입니다".to_string());
     }
-    
+
     let result = if cfg!(windows) {
         components.join("\\")
     } else {
@@ -182,16 +190,15 @@ fn normalize_path_manually(path: &Path) -> Result<PathBuf, String> {
             components.join("/")
         }
     };
-    
+
     Ok(PathBuf::from(result))
 }
 
 // 파일 정보 추가 확인 함수 (나중에 확장용)
 #[allow(dead_code)]
 fn get_file_info(path: &Path) -> Result<FileInfo, String> {
-    let metadata = fs::metadata(path)
-        .map_err(|e| format!("파일 정보 읽기 실패: {}", e))?;
-    
+    let metadata = fs::metadata(path).map_err(|e| format!("파일 정보 읽기 실패: {}", e))?;
+
     Ok(FileInfo {
         size: metadata.len(),
         is_readonly: metadata.permissions().readonly(),

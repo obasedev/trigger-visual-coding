@@ -1,29 +1,31 @@
 // src-tauri/src/nodes/mod.rs
 // 기존 노드들 (프론트엔드와 1:1 대응)
-pub mod start_node;
+pub mod chat_web_server_node; // 🆕 웹서버 노드 추가
 pub mod file_creator_node;
-pub mod text_file_editor_node;
-pub mod chat_web_server_node;  // 🆕 웹서버 노드 추가
-pub mod workflow_storage;
+pub mod file_path_node; // 🆕 추가
+pub mod file_to_clipboard_node;
 pub mod qr_code_node;
-pub mod video_download_node; 
-pub mod file_path_node;  // 🆕 추가
+pub mod start_node;
+pub mod text_file_editor_node;
+pub mod video_download_node;
+pub mod workflow_storage;
 // 함수들을 재export (자동 등록을 위해)
-pub use start_node::start_node;
-pub use file_creator_node::file_creator_node;
-pub use text_file_editor_node::text_file_editor_node;
 pub use chat_web_server_node::{
-    chat_web_server_node, 
-    send_to_mobile,           // 🎯 기존
-    stop_chat_server_node,    // 🎯 기존
-    get_chat_server_status,   // 🎯 기존
-    stop_chat_tunnel,         // 🆕 추가
-    get_chat_server_info      // 🆕 추가
+    chat_web_server_node,
+    get_chat_server_info,   // 🆕 추가
+    get_chat_server_status, // 🎯 기존
+    send_to_mobile,         // 🎯 기존
+    stop_chat_server_node,  // 🎯 기존
+    stop_chat_tunnel,       // 🆕 추가
 };
-pub use workflow_storage::{save_workflow_to_desktop, load_workflow_from_desktop};
+pub use file_creator_node::file_creator_node;
+pub use file_path_node::file_path_node; // 🆕 추가
+pub use file_to_clipboard_node::file_to_clipboard_node;
 pub use qr_code_node::qr_code_node;
-pub use video_download_node::video_download_node; 
-pub use file_path_node::file_path_node;  // 🆕 추가
+pub use start_node::start_node;
+pub use text_file_editor_node::text_file_editor_node;
+pub use video_download_node::video_download_node;
+pub use workflow_storage::{load_workflow_from_desktop, save_workflow_to_desktop};
 
 // 나중에 추가될 노드들을 위한 매크로 자동 생성 준비
 // 새로운 노드 추가 시:

@@ -246,7 +246,6 @@ function ChatWebServerNode({ id, data, selected }: ChatWebServerNodeProps) {
     }
   }, [data.triggerExecution, executeNode]);
 
-  // 🚀 실시간 채팅 메시지 이벤트 리스너
   useEffect(() => {
     let unlisten: (() => void) | null = null;
 
@@ -258,22 +257,23 @@ function ChatWebServerNode({ id, data, selected }: ChatWebServerNodeProps) {
           if (payload.node_id === id) {
             console.log(`📨 Node ${id} received message: ${payload.message}`);
             
-            // 🔧 수정: 메시지 받을 때 기존 serverUrl 값 보존
+            // 🔧 메시지 받을 때 기존 serverUrl 값 보존하면서 상태만 갱신
             updateNodeData(id, {
               outputData: {
                 ...data.outputData,
-                serverUrl: data.outputData?.serverUrl || serverUrl, // ✅ 핵심 수정: 기존 serverUrl 보존
+                serverUrl: data.outputData?.serverUrl || serverUrl,
                 receivedMessage: payload.message
               }
             });
 
-            setTimeout(() => {
-              console.log(`🔗 Message received, triggering next nodes from ${id}`);
-              executeNextNodes(id);
-            }, 50);
+            // ❌ 아래 이 부분은 삭제
+            // setTimeout(() => {
+            //   console.log(`🔗 Message received, triggering next nodes from ${id}`);
+            //   executeNextNodes(id);
+            // }, 50);
           }
         });
-        
+
         console.log(`👂 Chat message listener setup for node ${id}`);
       } catch (error) {
         console.error('❌ Failed to setup chat message listener:', error);
@@ -288,7 +288,15 @@ function ChatWebServerNode({ id, data, selected }: ChatWebServerNodeProps) {
         console.log(`🔇 Chat message listener removed for node ${id}`);
       }
     };
-  }, [id, executeNextNodes]); // 🔧 핵심 수정: 무한 루프 방지를 위해 의존성 배열에서 data.outputData, serverUrl, updateNodeData 제거
+  }, [id, updateNodeData, data.outputData, serverUrl]);
+
+// 💥 메시지 반영 완료 후 다음 노드 실행시키는 부분
+  useEffect(() => {
+    if (data.outputData?.receivedMessage) {
+      console.log(`🚀 Triggering next nodes from ${id} due to received message`);
+      executeNextNodes(id);
+    }
+  }, [data.outputData?.receivedMessage]);
 
   // 컴포넌트 마운트시 서버 상태 초기화
   useEffect(() => {
