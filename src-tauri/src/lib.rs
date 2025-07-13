@@ -20,7 +20,9 @@ pub fn run() {
             get_chat_server_info,    // 🆕 추가
             save_workflow_to_desktop,
             load_workflow_from_desktop,
-            qr_code_node
+            qr_code_node,
+            video_download_node,
+            file_path_node,  // 🆕 이 한 줄만 추가
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

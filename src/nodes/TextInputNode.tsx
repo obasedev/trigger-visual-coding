@@ -5,17 +5,18 @@ import BaseNode, { InputField, OutputField } from './Basenode';
 import type {
   TextInputNodeProps,
   TextInputNodeData,
-  NodeConfig
+  NodeConfig,
+  ExecutionMode
 } from '../types';
 
 import { useWorkflow } from '../WorkflowContext';
 
 function TextInputNode({ id, data, selected }: TextInputNodeProps) {
-  const { updateNodeData } = useWorkflow();
+  const { updateNodeData, executeNextNodes } = useWorkflow();
 
-  // 자체 메모장(로컬 state) 생성
-  // 노드 전체 데이터(data.text)와 별개로, 입력창의 현재 값만 관리합니다.
+  // 기존 로컬 상태 + 실행 상태 추가
   const [localValue, setLocalValue] = useState(data?.text || '');
+  const [status, setStatus] = useState<'waiting' | 'running' | 'completed' | 'failed'>('waiting');
 
   // data prop이 외부에서 변경될 경우, 로컬 state도 동기화
   useEffect(() => {
@@ -29,7 +30,6 @@ function TextInputNode({ id, data, selected }: TextInputNodeProps) {
   
   // 입력창 포커스가 사라질 때만 본사에 최종 보고
   const handleBlur = () => {
-    // 로컬 state의 최종 값을 전체 데이터(nodes)에 업데이트합니다.
     if (data?.text !== localValue) {
       console.log(`Finalizing text for node ${id}: ${localValue}`);
       updateNodeData(id, {
@@ -41,20 +41,61 @@ function TextInputNode({ id, data, selected }: TextInputNodeProps) {
     }
   };
 
-  const executeNode = () => {
-    console.log("Input Node: I don't do anything, I just provide data.");
-  };
+  // ✅ StartNode처럼 항상 다음 노드 트리거하는 executeNode
+  const executeNode = useCallback(async (mode: ExecutionMode = 'triggered'): Promise<void> => {
+    try {
+      setStatus('running');
+      
+      console.log(`📝 Text Input Node ${id} executing... (mode: ${mode})`);
+      console.log(`📤 Providing text: "${localValue}"`);
+      
+      // 현재 텍스트 데이터 최종 업데이트
+      updateNodeData(id, {
+        text: localValue,
+        outputData: {
+          text: localValue
+        }
+      });
+      
+      setStatus('completed');
+      
+      // 🚀 StartNode처럼 항상 다음 노드들 트리거
+      executeNextNodes(id);
+      console.log(`🔗 TextInputNode: Triggering next nodes (mode: ${mode})`);
+      
+      // 2초 후 자동 상태 복귀
+      setTimeout(() => {
+        setStatus('waiting');
+      }, 2000);
+      
+    } catch (error: unknown) {
+      console.error('❌ Text Input Node failed:', error);
+      setStatus('failed');
+      
+      setTimeout(() => {
+        setStatus('waiting');
+      }, 2000);
+    }
+  }, [id, localValue, updateNodeData, executeNextNodes]);
+
+  // 외부 트리거 실행 감지
+  useEffect(() => {
+    if (data.triggerExecution && typeof data.triggerExecution === 'number') {
+      console.log(`📝 Text Input Node ${id} auto-execution triggered!`);
+      executeNode('triggered');
+    }
+  }, [data.triggerExecution, executeNode]);
 
   return (
     <BaseNode<TextInputNodeData>
       id={id}
       title="Text Input"
       icon={<MessageSquare size={16} stroke="white" />}
-      status="waiting"
+      status={status}
       selected={selected}
       onExecute={executeNode}
       hasInput={false}
-      hasOutput={false}
+      hasOutput={true}  // 출력 트리거 활성화
       data={data}
     >
       {/* InputField에 로컬 state와 onBlur 이벤트를 연결합니다. */}
@@ -74,19 +115,37 @@ function TextInputNode({ id, data, selected }: TextInputNodeProps) {
         nodeId={id}
         label="Text"
         icon={<MessageSquare size={12} />}
-        value={data?.outputData?.text || localValue}
+        value={
+          (() => {
+            const text = data?.outputData?.text || localValue;
+            if (!text) return '';
+            
+            // 긴 텍스트를 2줄로 제한 (대략 80자)
+            if (text.length > 80) {
+              return text.substring(0, 80) + '...';
+            }
+            
+            // 줄바꿈이 많으면 첫 2줄만 표시
+            const lines = text.split('\n');
+            if (lines.length > 2) {
+              return lines.slice(0, 2).join('\n') + '...';
+            }
+            
+            return text;
+          })()
+        }
         handleId="text"
       />
     </BaseNode>
   );
 }
 
-// 사이드바 자동 발견을 위한 설정 정보
+// 사이드바 자동 발견을 위한 설정 정보 - Core 카테고리로 변경
 export const config: NodeConfig = {
   type: 'textInputNode',
   label: 'Text Input',
   color: '#FFC107',
-  category: 'Data',
+  category: 'Core', // Data → Core로 변경
   settings: [
     { key: 'text', type: 'textarea', label: 'Text', default: '' }
   ]

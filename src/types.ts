@@ -118,6 +118,20 @@ export interface ChatWebServerNodeData extends BaseNodeData {
   text: string; // 🎯 textInput → text로 변경
 }
 
+// 🆕 VideoDownloadNode 데이터 타입
+export interface VideoDownloadNodeData extends BaseNodeData {
+  urls: string;
+  folderName: string;
+  downloadPath: string;
+}
+
+// 🆕 FilePathNode 데이터 타입
+export interface FilePathNodeData extends BaseNodeData {
+  filePaths: string[];
+  allowMultiple: boolean;
+}
+
+
 // =====================================
 // BaseNode Props 타입 정의
 // =====================================
@@ -231,5 +245,19 @@ export interface TextInputNodeProps {
 export interface ChatWebServerNodeProps {
   id: string;
   data: ChatWebServerNodeData;
+  selected: boolean;
+}
+
+// 🆕 VideoDownloadNode Props 타입
+export interface VideoDownloadNodeProps {
+  id: string;
+  data: VideoDownloadNodeData;
+  selected: boolean;
+}
+
+// 🆕 FilePathNode Props 타입
+export interface FilePathNodeProps {
+  id: string;
+  data: FilePathNodeData;
   selected: boolean;
 }
