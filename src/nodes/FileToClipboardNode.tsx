@@ -212,24 +212,6 @@ function FileToClipboardNode({ id, data, selected }: FileToClipboardNodeProps) {
         onChange={handleFilePathsChange}
         disabled={isFilePathsConnected}
       />
-
-      {/* 상태 표시 */}
-      {status === 'completed' && (
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px',
-          padding: '6px 8px',
-          backgroundColor: 'rgba(76, 175, 80, 0.1)',
-          borderRadius: '4px',
-          marginTop: '8px'
-        }}>
-          <CheckCircle size={12} color="#4CAF50" />
-          <span style={{ fontSize: '10px', color: '#4CAF50' }}>
-            Files copied to clipboard
-          </span>
-        </div>
-      )}
     </BaseNode>
   );
 }

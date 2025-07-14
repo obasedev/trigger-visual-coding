@@ -236,6 +236,8 @@
   display: flex;
   align-items: center;
   gap: 12px;
+  flex: 1;
+  min-width: 0; /* 텍스트 overflow 처리를 위해 */
 }
 
 .viewer-node-id {
@@ -247,10 +249,87 @@
   border-radius: 4px;
 }
 
+/* 🆕 라벨 표시 컨테이너 */
+.viewer-label-display-container {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
 .viewer-node-title {
   font-size: 14px;
   font-weight: 600;
   color: #ffffff;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.viewer-node-title.editable {
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 3px;
+  transition: background-color 0.2s;
+}
+
+.viewer-node-title.editable:hover {
+  background: rgba(100, 181, 246, 0.2);
+}
+
+/* 🆕 라벨 편집 버튼 */
+.viewer-edit-label-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  background: transparent;
+  border: none;
+  border-radius: 3px;
+  color: #6b7280;
+  cursor: pointer;
+  opacity: 0;
+  transition: all 0.2s;
+}
+
+.viewer-label-display-container:hover .viewer-edit-label-button {
+  opacity: 1;
+}
+
+.viewer-edit-label-button:hover {
+  background: rgba(100, 181, 246, 0.2);
+  color: #64b5f6;
+}
+
+/* 🆕 라벨 편집 컨테이너 (버튼 제거) */
+.viewer-label-edit-container {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.viewer-label-input {
+  flex: 1;
+  padding: 4px 8px;
+  background: #1a1a1a;
+  border: 1px solid #64b5f6;
+  border-radius: 4px;
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  outline: none;
+  min-width: 0;
+}
+
+.viewer-label-input::placeholder {
+  color: #666;
+  font-weight: normal;
 }
 
 .viewer-node-type {

@@ -14,6 +14,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { invoke } from '@tauri-apps/api/core';
+import { Store } from '@tauri-apps/plugin-store'; // 🆕 Store 플러그인 추가
 import { Save, FolderOpen, Eye } from 'lucide-react';
 import Sidebar from './Sidebar';
 import { WorkflowProvider } from './WorkflowContext';
@@ -42,6 +43,17 @@ const defaultNodes: Node[] = [
     }
   }
 ];
+
+// 🆕 Store 인스턴스를 전역에서 관리
+let appStore: Store | null = null;
+
+// 🆕 Store 초기화 함수
+const getAppStore = async (): Promise<Store> => {
+  if (!appStore) {
+    appStore = await Store.load('app-settings.json');
+  }
+  return appStore;
+};
 
 // Workspace Props 인터페이스
 interface WorkspaceProps {
@@ -75,7 +87,6 @@ function Workspace({
   
   const reactFlowInstance = useReactFlow();
   const nodeManager = getNodeManager();
-
 
   // 🔄 노드 데이터 업데이트 함수 (App 상태 직접 수정)
   const updateNodeData = useCallback((nodeId: string, newData: Partial<BaseNodeData>) => {
@@ -118,6 +129,65 @@ function Workspace({
     }
   }, [viewerItems, onViewerItemsChange]);
 
+  // 🆕 앱 시작시 마지막 저장된 워크플로우 자동 로드
+  useEffect(() => {
+    const autoLoadLastWorkflow = async () => {
+      try {
+        const store = await getAppStore();
+        const lastSavedPath = await store.get<string>('lastSavedWorkflow');
+        
+        if (lastSavedPath) {
+          console.log(`🔄 마지막 저장된 워크플로우 자동 로드: ${lastSavedPath}`);
+          
+          // 파일이 존재하는지 확인하고 로드
+          try {
+            const workflowData = await invoke('load_specific_workflow', { 
+              filePath: lastSavedPath 
+            }) as string;
+            
+            if (workflowData?.trim()) {
+              const flow = JSON.parse(workflowData);
+              
+              if (Array.isArray(flow.nodes)) {
+                onNodesChange(flow.nodes);
+                nodeManager.syncWithNodes(flow.nodes);
+                
+                const loadedNodeIds = new Set(flow.nodes.map((node: Node) => node.id));
+                cleanupViewerItems(loadedNodeIds);
+              }
+              if (Array.isArray(flow.edges)) onEdgesChange(flow.edges);
+              if (flow.viewport) reactFlowInstance.setViewport(flow.viewport);
+              
+              // 뷰어 정보도 복원
+              if (Array.isArray(flow.viewerItems)) {
+                const currentNodeIds = new Set(flow.nodes?.map((node: Node) => node.id) || []);
+                const validViewerItems = flow.viewerItems.filter((item: any) => 
+                  currentNodeIds.has(item.nodeId)
+                );
+                onViewerItemsChange(validViewerItems);
+              } else {
+                onViewerItemsChange([]);
+              }
+              
+              console.log('✅ 마지막 워크플로우 자동 로드 완료');
+            }
+          } catch (error) {
+            console.warn('⚠️ 마지막 저장된 파일을 찾을 수 없음:', error);
+            // 파일이 없거나 손상된 경우 Store에서 경로 제거
+            await store.delete('lastSavedWorkflow');
+          }
+        } else {
+          console.log('💭 저장된 워크플로우 없음 - 기본 노드로 시작');
+        }
+      } catch (error) {
+        console.error('❌ 자동 로드 실패:', error);
+      }
+    };
+
+    // 컴포넌트 마운트 시 한 번만 실행
+    autoLoadLastWorkflow();
+  }, []); // 빈 의존성 배열 - 한 번만 실행
+
   // 🔄 데이터 파이프라인 동기화
   useEffect(() => {
     const dataEdges = edges.filter(edge => edge.sourceHandle !== 'trigger-output');
@@ -153,43 +223,40 @@ function Workspace({
   }, [nodes, edges, onNodesChange]);
 
   // 📝 노드 변경 처리 (삭제시 뷰어 정리 포함)
-  // 📝 노드 변경 처리 (React Flow onNodesChange 오류 해결)
-const onNodesChangeHandler = useCallback(
-  (changes: NodeChange[]) => {
-  
-    
-    // 노드 삭제시 뷰어에서도 제거 및 ID 관리
-    const deletedNodeIds = changes
-      .filter(change => change.type === 'remove')
-      .map(change => change.id);
+  const onNodesChangeHandler = useCallback(
+    (changes: NodeChange[]) => {
+      // 노드 삭제시 뷰어에서도 제거 및 ID 관리
+      const deletedNodeIds = changes
+        .filter(change => change.type === 'remove')
+        .map(change => change.id);
 
-    if (deletedNodeIds.length > 0) {
-      console.log('🗑️ Deleting nodes:', deletedNodeIds);
-      
-      // NodeManager에서 ID 반납
-      deletedNodeIds.forEach(nodeId => {
-        nodeManager.releaseId(nodeId);
-      });
-      
-      // 삭제 후 남은 노드들의 ID 집합 계산
-      const remainingNodeIds = new Set(
-        nodes
-          .filter(node => !deletedNodeIds.includes(node.id))
-          .map(node => node.id)
-      );
-      
-      // 뷰어 목록 정리
-      cleanupViewerItems(remainingNodeIds);
-    }
+      if (deletedNodeIds.length > 0) {
+        console.log('🗑️ Deleting nodes:', deletedNodeIds);
+        
+        // NodeManager에서 ID 반납
+        deletedNodeIds.forEach(nodeId => {
+          nodeManager.releaseId(nodeId);
+        });
+        
+        // 삭제 후 남은 노드들의 ID 집합 계산
+        const remainingNodeIds = new Set(
+          nodes
+            .filter(node => !deletedNodeIds.includes(node.id))
+            .map(node => node.id)
+        );
+        
+        // 뷰어 목록 정리
+        cleanupViewerItems(remainingNodeIds);
+      }
 
-    // 🔧 수정: React Flow의 applyNodeChanges 사용하여 정확한 상태 업데이트
-    const updatedNodes = applyNodeChanges(changes, nodes);
-    
-    // 상태 업데이트
-    onNodesChange(updatedNodes);
-  },
-  [nodes, onNodesChange, nodeManager, cleanupViewerItems]
-);
+      // 🔧 수정: React Flow의 applyNodeChanges 사용하여 정확한 상태 업데이트
+      const updatedNodes = applyNodeChanges(changes, nodes);
+      
+      // 상태 업데이트
+      onNodesChange(updatedNodes);
+    },
+    [nodes, onNodesChange, nodeManager, cleanupViewerItems]
+  );
 
   // 📝 엣지 변경 처리
   const onEdgesChangeHandler = useCallback(
@@ -415,7 +482,7 @@ const onNodesChangeHandler = useCallback(
     [edges, onEdgesChange, saveToHistory]
   );
 
-  // 💾 워크플로우 저장 (뷰어 정보 포함)
+  // 💾 워크플로우 저장 (뷰어 정보 포함) - 🆕 Store에 경로 저장 추가
   const saveWorkflow = useCallback(async () => {
     try {
       const flow = reactFlowInstance.toObject();
@@ -428,7 +495,19 @@ const onNodesChangeHandler = useCallback(
       
       const result = await invoke('save_workflow_to_desktop', { 
         workflowData: JSON.stringify(workflowData, null, 2) 
-      });
+      }) as string;
+
+      // 🆕 저장 성공시 Store에 파일 경로 저장
+      if (result && typeof result === 'string') {
+        try {
+          const store = await getAppStore();
+          await store.set('lastSavedWorkflow', result);
+          console.log(`💾 저장 완료 및 경로 기억: ${result}`);
+        } catch (storeError) {
+          console.warn('⚠️ Store에 경로 저장 실패:', storeError);
+        }
+      }
+      
       console.log('✅ Workflow + Viewer saved successfully');
     } catch (error: any) {
       if (error?.message === 'User cancelled the save operation') {

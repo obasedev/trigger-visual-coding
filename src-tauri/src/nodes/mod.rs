@@ -25,7 +25,7 @@ pub use qr_code_node::qr_code_node;
 pub use start_node::start_node;
 pub use text_file_editor_node::text_file_editor_node;
 pub use video_download_node::video_download_node;
-pub use workflow_storage::{load_workflow_from_desktop, save_workflow_to_desktop};
+pub use workflow_storage::{load_workflow_from_desktop, save_workflow_to_desktop, load_specific_workflow};
 
 // 나중에 추가될 노드들을 위한 매크로 자동 생성 준비
 // 새로운 노드 추가 시:

@@ -10,6 +10,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_store::Builder::default().build())
         .invoke_handler(tauri::generate_handler![
             start_node,
             file_creator_node,
@@ -22,6 +23,7 @@ pub fn run() {
             get_chat_server_info, // 🆕 추가
             save_workflow_to_desktop,
             load_workflow_from_desktop,
+            load_specific_workflow,
             qr_code_node,
             video_download_node,
             file_path_node, // 🆕 이 한 줄만 추가

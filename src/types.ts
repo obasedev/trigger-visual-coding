@@ -42,7 +42,7 @@ export interface NodeConfig {
 }
 
 // =====================================
-// 🆕 뷰어 관련 타입 정의
+// 🆕 뷰어 관련 타입 정의 (customLabel 추가)
 // =====================================
 
 // 뷰어에 추가된 노드 정보
@@ -50,6 +50,7 @@ export interface ViewerNodeItem {
   nodeId: string;
   nodeType: string;
   nodeTitle: string;
+  customLabel?: string; // 🆕 사용자 정의 라벨 (예: "AI전용", "이메일 자동화")
   addedAt: number; // 타임스탬프
 }
 
@@ -60,6 +61,8 @@ export interface ViewerActions {
   isInViewer: (nodeId: string) => boolean;
   clearViewer: () => void;
   getViewerItems: () => ViewerNodeItem[];
+  // 🆕 커스텀 라벨 업데이트 함수 추가
+  updateViewerLabel: (nodeId: string, customLabel: string) => void;
 }
 
 // =====================================

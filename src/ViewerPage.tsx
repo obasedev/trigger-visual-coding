@@ -1,5 +1,5 @@
-import React, { useMemo, useCallback } from 'react';
-import { ArrowLeft, Eye, Trash2, RefreshCw } from 'lucide-react';
+import React, { useMemo, useCallback, useState } from 'react';
+import { ArrowLeft, Eye, Trash2, RefreshCw, Edit3, Check, X } from 'lucide-react';
 import { Node } from '@xyflow/react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { WorkflowProvider } from './WorkflowContext';
@@ -28,6 +28,10 @@ function ViewerPage({
   executeNextNodes: executeNextNodesProp,
   onBackToWorkspace
 }: ViewerPageProps) {
+
+  // 🆕 라벨 편집 상태 관리
+  const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
+  const [editingLabel, setEditingLabel] = useState<string>('');
 
   // 뷰어에 있는 노드들의 실제 데이터를 가져오기
   const viewerNodes = useMemo(() => {
@@ -89,6 +93,51 @@ function ViewerPage({
     if (validItems.length !== viewerItems.length) {
       onViewerItemsChange(validItems);
     }
+  };
+
+  // 🆕 라벨 편집 시작
+  const startEditingLabel = (nodeId: string, currentLabel: string) => {
+    setEditingNodeId(nodeId);
+    setEditingLabel(currentLabel);
+  };
+
+  // 🆕 라벨 편집 취소
+  const cancelEditingLabel = () => {
+    setEditingNodeId(null);
+    setEditingLabel('');
+  };
+
+  // 🆕 라벨 편집 저장
+  const saveEditingLabel = (nodeId: string) => {
+    const updatedItems = viewerItems.map(item => {
+      if (item.nodeId === nodeId) {
+        return {
+          ...item,
+          customLabel: editingLabel.trim() || undefined // 빈 문자열이면 undefined로 설정
+        };
+      }
+      return item;
+    });
+    
+    onViewerItemsChange(updatedItems);
+    setEditingNodeId(null);
+    setEditingLabel('');
+  };
+
+  // 🆕 엔터키로 저장, ESC로 취소
+  const handleLabelKeyDown = (e: React.KeyboardEvent, nodeId: string) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      saveEditingLabel(nodeId);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      cancelEditingLabel();
+    }
+  };
+
+  // 🆕 표시할 라벨 계산 (customLabel이 있으면 사용, 없으면 기본 nodeTitle, ID는 표시 안함)
+  const getDisplayLabel = (viewerItem: ViewerNodeItem) => {
+    return viewerItem.customLabel || viewerItem.nodeTitle;
   };
 
   return (
@@ -153,7 +202,6 @@ function ViewerPage({
                     ref={provided.innerRef}
                     className={`viewer-droppable ${snapshot.isDraggingOver ? 'dragging-over' : ''}`}
                   >
-                    {/* 🔧 수정: WorkflowProvider 제거 (App에서 관리) */}
                     {viewerNodes.map((node, index) => {
                         const NodeComponent = nodeComponents[node.type];
                         
@@ -193,14 +241,56 @@ function ViewerPage({
                                 {...provided.draggableProps}
                                 className={`viewer-node-wrapper ${snapshot.isDragging ? 'dragging' : ''}`}
                               >
-                                {/* 뷰어 전용 헤더 with 드래그 핸들 */}
+                                {/* 🆕 뷰어 전용 헤더 with 편집 가능한 라벨 */}
                                 <div 
                                   {...provided.dragHandleProps}
                                   className="viewer-node-header"
                                 >
                                   <div className="viewer-node-info">
                                     <span className="viewer-node-id">#{node.id}</span>
-                                    <span className="viewer-node-title">{node.viewerItem.nodeTitle}</span>
+                                    
+                                    {/* 🆕 편집 가능한 라벨 영역 */}
+                                    {editingNodeId === node.id ? (
+                                      // 편집 모드
+                                      <div className="viewer-label-edit-container">
+                                        <input
+                                          type="text"
+                                          value={editingLabel}
+                                          onChange={(e) => setEditingLabel(e.target.value)}
+                                          onKeyDown={(e) => handleLabelKeyDown(e, node.id)}
+                                          className="viewer-label-input"
+                                          placeholder={node.viewerItem.nodeTitle}
+                                          autoFocus
+                                          onBlur={() => saveEditingLabel(node.id)}
+                                        />
+
+                                      </div>
+                                    ) : (
+                                      // 일반 모드 - 클릭하면 편집 모드로 전환
+                                      <div className="viewer-label-display-container">
+                                        <span 
+                                          className="viewer-node-title editable"
+                                          onClick={() => startEditingLabel(
+                                            node.id, 
+                                            node.viewerItem.customLabel || ''
+                                          )}
+                                          title="Click to edit label"
+                                        >
+                                          {getDisplayLabel(node.viewerItem)}
+                                        </span>
+                                        <button
+                                          onClick={() => startEditingLabel(
+                                            node.id, 
+                                            node.viewerItem.customLabel || ''
+                                          )}
+                                          className="viewer-edit-label-button"
+                                          title="Edit label"
+                                        >
+                                          <Edit3 size={10} />
+                                        </button>
+                                      </div>
+                                    )}
+                                    
                                     <span className="viewer-node-type">{node.type}</span>
                                   </div>
                                   <div className="viewer-header-actions">

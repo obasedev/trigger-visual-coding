@@ -246,8 +246,13 @@ export const getNodeManager = (): NodeManager => {
 };
 
 // 개발 모드에서 브라우저 콘솔에서 접근 가능
-if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
-  (window as any).nodeManager = getNodeManager();
+if (typeof window !== 'undefined') {
+  try {
+    const isDev = import.meta.env?.DEV || false;
+    if (isDev) {
+      (window as any).nodeManager = getNodeManager();
+    }
+  } catch (e) {
+    // 환경 변수 접근 실패시 무시
+  }
 }
-
-export default NodeManager;

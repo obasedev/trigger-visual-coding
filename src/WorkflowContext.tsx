@@ -74,6 +74,33 @@ export function WorkflowProvider({
     // 뷰어 목록 반환
     getViewerItems: (): ViewerNodeItem[] => {
       return [...viewerItems]; // 복사본 반환으로 안전성 확보
+    },
+    
+    // 🆕 뷰어 노드의 커스텀 라벨 업데이트
+    updateViewerLabel: (nodeId: string, customLabel: string) => {
+      const updatedItems = viewerItems.map(item => {
+        if (item.nodeId === nodeId) {
+          return {
+            ...item,
+            customLabel: customLabel.trim() || undefined // 빈 문자열이면 undefined로 설정
+          };
+        }
+        return item;
+      });
+      
+      // 실제로 변경된 경우에만 상태 업데이트
+      const hasChanged = updatedItems.some((item, index) => {
+        const originalItem = viewerItems[index];
+        return originalItem && (
+          item.customLabel !== originalItem.customLabel ||
+          item.nodeId !== originalItem.nodeId
+        );
+      });
+      
+      if (hasChanged) {
+        onViewerItemsChange(updatedItems);
+        console.log(`🏷️ Node ${nodeId} label updated to: "${customLabel || '(default)'}"`);
+      }
     }
     
   }), [viewerItems, onViewerItemsChange]);
@@ -124,6 +151,7 @@ export function useViewerStatus(nodeId: string): {
   isInViewer: boolean;
   addToViewer: (nodeType: string, nodeTitle: string) => void;
   removeFromViewer: () => void;
+  updateLabel: (customLabel: string) => void; // 🆕 라벨 업데이트 함수 추가
 } {
   const { viewerActions } = useWorkflow();
   
@@ -142,10 +170,16 @@ export function useViewerStatus(nodeId: string): {
     viewerActions.removeFromViewer(nodeId);
   }, [viewerActions, nodeId]);
   
+  // 🆕 라벨 업데이트 함수
+  const updateLabel = useCallback((customLabel: string) => {
+    viewerActions.updateViewerLabel(nodeId, customLabel);
+  }, [viewerActions, nodeId]);
+  
   return {
     isInViewer,
     addToViewer,
-    removeFromViewer
+    removeFromViewer,
+    updateLabel // 🆕 추가
   };
 }
 
