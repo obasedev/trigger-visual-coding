@@ -89,6 +89,7 @@ function Workspace({
   
   // 플러그인 상태 추가
   const [pluginNodes, setPluginNodes] = useState<any[]>([]);
+  const [pluginLoaded, setPluginLoaded] = useState(false);
   
   // 플러그인 노드 배열을 안정화 (React Flow 경고 방지)
   const stablePluginNodes = useMemo(() => pluginNodes, [JSON.stringify(pluginNodes)]);
@@ -163,7 +164,7 @@ function Workspace({
     loadPlugins();
   }, []);
 
-  // 앱 시작시 마지막 저장된 워크플로우 자동 로드
+  // 앱 시작시 마지막 저장된 워크플로우 자동 로드 (플러그인 로드 완료 후)
   useEffect(() => {
     const autoLoadLastWorkflow = async () => {
       try {
@@ -182,17 +183,41 @@ function Workspace({
               const flow = JSON.parse(workflowData);
               
               if (Array.isArray(flow.nodes)) {
-                onNodesChange(flow.nodes);
-                nodeManager.syncWithNodes(flow.nodes);
+                // 🔧 플러그인 노드 복원 로직 추가
+                const restoredNodes = flow.nodes.map((node: Node) => {
+                  if (node.type && node.type.startsWith('plugin:')) {
+                    const pluginId = node.type.replace('plugin:', '');
+                    const pluginManager = PluginManager.getInstance();
+                    const plugin = pluginManager.getPlugin(pluginId);
+                    
+                    if (plugin) {
+                      // 플러그인이 존재하면 pluginId 확인/복원
+                      return {
+                        ...node,
+                        data: {
+                          ...node.data,
+                          pluginId: pluginId
+                        }
+                      };
+                    } else {
+                      console.warn(`⚠️ 플러그인 노드 복원 실패: ${pluginId} (플러그인 미등록, pluginNodes:`, pluginNodes, ")");
+                      return node;
+                    }
+                  }
+                  return node;
+                });
                 
-                const loadedNodeIds = new Set(flow.nodes.map((node: Node) => node.id));
+                onNodesChange(restoredNodes);
+                nodeManager.syncWithNodes(restoredNodes);
+                
+                const loadedNodeIds = new Set(restoredNodes.map((node: Node) => node.id as string));
                 cleanupViewerItems(loadedNodeIds);
               }
               if (Array.isArray(flow.edges)) onEdgesChange(flow.edges);
               if (flow.viewport) reactFlowInstance.setViewport(flow.viewport);
               
               if (Array.isArray(flow.viewerItems)) {
-                const currentNodeIds = new Set(flow.nodes?.map((node: Node) => node.id) || []);
+                const currentNodeIds = new Set(flow.nodes?.map((node: Node) => node.id as string) || []);
                 const validViewerItems = flow.viewerItems.filter((item: any) => 
                   currentNodeIds.has(item.nodeId)
                 );
@@ -215,8 +240,11 @@ function Workspace({
       }
     };
 
-    autoLoadLastWorkflow();
-  }, []);
+    // 플러그인들이 모두 로드된 후에만 워크플로우 복원 시도
+    if (pluginNodes.length > 0) {
+      autoLoadLastWorkflow();
+    }
+  }, [pluginNodes]);
 
   // 데이터 파이프라인 동기화
   useEffect(() => {
@@ -269,7 +297,7 @@ function Workspace({
         const remainingNodeIds = new Set(
           nodes
             .filter(node => !deletedNodeIds.includes(node.id))
-            .map(node => node.id)
+            .map(node => node.id as string)
         );
         
         cleanupViewerItems(remainingNodeIds);
@@ -348,7 +376,7 @@ function Workspace({
       nodeManager.syncWithNodes(stateToRestore.nodes);
       setHistoryIndex(prev => prev - 1);
       
-      const restoredNodeIds = new Set(stateToRestore.nodes.map((node: Node) => node.id));
+      const restoredNodeIds = new Set(stateToRestore.nodes.map((node: Node) => node.id as string));
       cleanupViewerItems(restoredNodeIds);
     }
   }, [history, historyIndex, onNodesChange, onEdgesChange, nodeManager, cleanupViewerItems]);
@@ -362,7 +390,7 @@ function Workspace({
       nodeManager.syncWithNodes(stateToRestore.nodes);
       setHistoryIndex(prev => prev + 1);
       
-      const restoredNodeIds = new Set(stateToRestore.nodes.map((node: Node) => node.id));
+      const restoredNodeIds = new Set(stateToRestore.nodes.map((node: Node) => node.id as string));
       cleanupViewerItems(restoredNodeIds);
     }
   }, [history, historyIndex, onNodesChange, onEdgesChange, nodeManager, cleanupViewerItems]);
@@ -378,7 +406,7 @@ function Workspace({
     const selectedNodes = nodes.filter(node => node.selected);
     if (selectedNodes.length === 0) return;
     
-    const selectedNodeIds = new Set(selectedNodes.map(node => node.id));
+    const selectedNodeIds = new Set(selectedNodes.map(node => node.id as string));
     const relatedEdges = edges.filter(edge => 
       selectedNodeIds.has(edge.source) && selectedNodeIds.has(edge.target)
     );
@@ -600,14 +628,14 @@ function Workspace({
         onNodesChange(flow.nodes);
         nodeManager.syncWithNodes(flow.nodes);
         
-        const loadedNodeIds = new Set(flow.nodes.map((node: Node) => node.id));
+        const loadedNodeIds = new Set(flow.nodes.map((node: Node) => node.id as string));
         cleanupViewerItems(loadedNodeIds);
       }
       if (Array.isArray(flow.edges)) onEdgesChange(flow.edges);
       if (flow.viewport) reactFlowInstance.setViewport(flow.viewport);
       
       if (Array.isArray(flow.viewerItems)) {
-        const currentNodeIds = new Set(flow.nodes?.map((node: Node) => node.id) || []);
+        const currentNodeIds = new Set(flow.nodes?.map((node: Node) => node.id as string) || []);
         const validViewerItems = flow.viewerItems.filter((item: any) => 
           currentNodeIds.has(item.nodeId)
         );
