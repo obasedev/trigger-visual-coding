@@ -5,6 +5,7 @@ pub mod file_creator_node;
 pub mod file_path_node; // 🆕 추가
 pub mod file_to_clipboard_node;
 pub mod qr_code_node;
+pub mod run_command_node;
 pub mod start_node;
 pub mod text_file_editor_node;
 pub mod video_download_node;
@@ -22,6 +23,7 @@ pub use file_creator_node::file_creator_node;
 pub use file_path_node::file_path_node; // 🆕 추가
 pub use file_to_clipboard_node::file_to_clipboard_node;
 pub use qr_code_node::qr_code_node;
+pub use run_command_node::run_command_node;
 pub use start_node::start_node;
 pub use text_file_editor_node::text_file_editor_node;
 pub use video_download_node::video_download_node;

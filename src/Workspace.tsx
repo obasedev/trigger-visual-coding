@@ -14,12 +14,14 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { invoke } from '@tauri-apps/api/core';
-import { Store } from '@tauri-apps/plugin-store'; // 🆕 Store 플러그인 추가
+import { Store } from '@tauri-apps/plugin-store';
 import { Save, FolderOpen, Eye } from 'lucide-react';
 import Sidebar from './Sidebar';
 import { WorkflowProvider } from './WorkflowContext';
 import { getNodeManager } from './NodeManager';
 import { BaseNodeData, ViewerNodeItem } from './types';
+import { PluginManager } from './PluginManager';
+import PluginNode from './nodes/PluginNode'; // 🆕 PluginNode import 추가
 import './workspace.css';
 
 const nodeModules = import.meta.glob('./nodes/*Node.tsx', { eager: true });
@@ -44,10 +46,10 @@ const defaultNodes: Node[] = [
   }
 ];
 
-// 🆕 Store 인스턴스를 전역에서 관리
+// Store 인스턴스를 전역에서 관리
 let appStore: Store | null = null;
 
-// 🆕 Store 초기화 함수
+// Store 초기화 함수
 const getAppStore = async (): Promise<Store> => {
   if (!appStore) {
     appStore = await Store.load('app-settings.json');
@@ -80,15 +82,18 @@ function Workspace({
   executeNextNodes: executeNextNodesProp
 }: WorkspaceProps) {
 
-  // 🔄 기존 로컬 상태들 (히스토리, 클립보드 등은 유지)
+  // 기존 로컬 상태들
   const [internalClipboard, setInternalClipboard] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
   const [historyIndex, setHistoryIndex] = useState<number>(-1);
   
+  // 플러그인 상태 추가
+  const [pluginNodes, setPluginNodes] = useState<any[]>([]);
+  
   const reactFlowInstance = useReactFlow();
   const nodeManager = getNodeManager();
 
-  // 🔄 노드 데이터 업데이트 함수 (App 상태 직접 수정)
+  // 노드 데이터 업데이트 함수
   const updateNodeData = useCallback((nodeId: string, newData: Partial<BaseNodeData>) => {
     const updatedNodes = nodes.map((node) => {
       if (node.id === nodeId) {
@@ -102,7 +107,7 @@ function Workspace({
     updateNodeDataProp(nodeId, newData);
   }, [nodes, onNodesChange, updateNodeDataProp]);
 
-  // 🚀 다음 노드들 실행 함수 (App 상태 직접 수정)
+  // 다음 노드들 실행 함수
   const executeNextNodes = useCallback((completedNodeId: string) => {
     const nextNodeIds: string[] = edges
       .filter(edge => edge.source === completedNodeId && edge.sourceHandle === 'trigger-output')
@@ -121,7 +126,7 @@ function Workspace({
     executeNextNodesProp(completedNodeId);
   }, [edges, nodes, onNodesChange, executeNextNodesProp]);
 
-  // 🧹 뷰어 목록 정리 함수
+  // 뷰어 목록 정리 함수
   const cleanupViewerItems = useCallback((remainingNodeIds: Set<string>) => {
     const cleanedItems = viewerItems.filter(item => remainingNodeIds.has(item.nodeId));
     if (cleanedItems.length !== viewerItems.length) {
@@ -129,7 +134,33 @@ function Workspace({
     }
   }, [viewerItems, onViewerItemsChange]);
 
-  // 🆕 앱 시작시 마지막 저장된 워크플로우 자동 로드
+  // 플러그인 로드 useEffect
+  useEffect(() => {
+    const loadPlugins = async () => {
+      try {
+        console.log('🔌 Starting plugin system initialization...');
+        
+        const pluginManager = PluginManager.getInstance();
+        await pluginManager.scanAndLoadPlugins();
+        
+        const pluginConfigs = pluginManager.getPluginConfigs();
+        setPluginNodes(pluginConfigs);
+        
+        console.log(`🔌 Plugin system ready: ${pluginConfigs.length} plugins loaded`);
+        console.log('Plugin configs:', pluginConfigs);
+        
+        // 전역에 PluginManager 노출 (디버깅용)
+        (window as any).PluginManager = PluginManager;
+        
+      } catch (error) {
+        console.error('❌ Failed to initialize plugin system:', error);
+      }
+    };
+    
+    loadPlugins();
+  }, []);
+
+  // 앱 시작시 마지막 저장된 워크플로우 자동 로드
   useEffect(() => {
     const autoLoadLastWorkflow = async () => {
       try {
@@ -139,7 +170,6 @@ function Workspace({
         if (lastSavedPath) {
           console.log(`🔄 마지막 저장된 워크플로우 자동 로드: ${lastSavedPath}`);
           
-          // 파일이 존재하는지 확인하고 로드
           try {
             const workflowData = await invoke('load_specific_workflow', { 
               filePath: lastSavedPath 
@@ -158,7 +188,6 @@ function Workspace({
               if (Array.isArray(flow.edges)) onEdgesChange(flow.edges);
               if (flow.viewport) reactFlowInstance.setViewport(flow.viewport);
               
-              // 뷰어 정보도 복원
               if (Array.isArray(flow.viewerItems)) {
                 const currentNodeIds = new Set(flow.nodes?.map((node: Node) => node.id) || []);
                 const validViewerItems = flow.viewerItems.filter((item: any) => 
@@ -173,7 +202,6 @@ function Workspace({
             }
           } catch (error) {
             console.warn('⚠️ 마지막 저장된 파일을 찾을 수 없음:', error);
-            // 파일이 없거나 손상된 경우 Store에서 경로 제거
             await store.delete('lastSavedWorkflow');
           }
         } else {
@@ -184,11 +212,10 @@ function Workspace({
       }
     };
 
-    // 컴포넌트 마운트 시 한 번만 실행
     autoLoadLastWorkflow();
-  }, []); // 빈 의존성 배열 - 한 번만 실행
+  }, []);
 
-  // 🔄 데이터 파이프라인 동기화
+  // 데이터 파이프라인 동기화
   useEffect(() => {
     const dataEdges = edges.filter(edge => edge.sourceHandle !== 'trigger-output');
     const updates: { nodeId: string; newData: Partial<BaseNodeData> }[] = [];
@@ -222,10 +249,9 @@ function Workspace({
     }
   }, [nodes, edges, onNodesChange]);
 
-  // 📝 노드 변경 처리 (삭제시 뷰어 정리 포함)
+  // 노드 변경 처리
   const onNodesChangeHandler = useCallback(
     (changes: NodeChange[]) => {
-      // 노드 삭제시 뷰어에서도 제거 및 ID 관리
       const deletedNodeIds = changes
         .filter(change => change.type === 'remove')
         .map(change => change.id);
@@ -233,32 +259,26 @@ function Workspace({
       if (deletedNodeIds.length > 0) {
         console.log('🗑️ Deleting nodes:', deletedNodeIds);
         
-        // NodeManager에서 ID 반납
         deletedNodeIds.forEach(nodeId => {
           nodeManager.releaseId(nodeId);
         });
         
-        // 삭제 후 남은 노드들의 ID 집합 계산
         const remainingNodeIds = new Set(
           nodes
             .filter(node => !deletedNodeIds.includes(node.id))
             .map(node => node.id)
         );
         
-        // 뷰어 목록 정리
         cleanupViewerItems(remainingNodeIds);
       }
 
-      // 🔧 수정: React Flow의 applyNodeChanges 사용하여 정확한 상태 업데이트
       const updatedNodes = applyNodeChanges(changes, nodes);
-      
-      // 상태 업데이트
       onNodesChange(updatedNodes);
     },
     [nodes, onNodesChange, nodeManager, cleanupViewerItems]
   );
 
-  // 📝 엣지 변경 처리
+  // 엣지 변경 처리
   const onEdgesChangeHandler = useCallback(
     (changes: EdgeChange[]) => {
       console.log('📝 Edge changes:', changes);
@@ -277,7 +297,6 @@ function Workspace({
           case 'remove':
             updatedEdges = updatedEdges.filter(edge => edge.id !== change.id);
             break;
-          // 다른 변경 타입들도 필요에 따라 추가
         }
       });
       
@@ -286,23 +305,21 @@ function Workspace({
     [edges, onEdgesChange]
   );
 
-  // 🏗️ 초기화 작업
+  // 초기화 작업
   useEffect(() => {
-    // 기존 노드 ID들을 NodeManager에 등록
     const currentNodeIds = nodes.map(node => parseInt(node.id)).filter(id => !isNaN(id));
     currentNodeIds.forEach(id => {
       nodeManager.registerExistingId(id);
     });
-  }, []); // 한 번만 실행
+  }, []);
 
   useEffect(() => {
-    // 컴포넌트 언마운트시 타이머 정리
     return () => {
       nodeManager.clearAllTimers();
     };
   }, [nodeManager]);
 
-  // 📚 히스토리 관리
+  // 히스토리 관리
   const saveToHistory = useCallback(() => {
     const currentState = {
       nodes: nodes.map(node => ({ ...node, data: { ...node.data } })),
@@ -328,7 +345,6 @@ function Workspace({
       nodeManager.syncWithNodes(stateToRestore.nodes);
       setHistoryIndex(prev => prev - 1);
       
-      // 뷰어 목록도 정리
       const restoredNodeIds = new Set(stateToRestore.nodes.map((node: Node) => node.id));
       cleanupViewerItems(restoredNodeIds);
     }
@@ -343,13 +359,12 @@ function Workspace({
       nodeManager.syncWithNodes(stateToRestore.nodes);
       setHistoryIndex(prev => prev + 1);
       
-      // 뷰어 목록도 정리
       const restoredNodeIds = new Set(stateToRestore.nodes.map((node: Node) => node.id));
       cleanupViewerItems(restoredNodeIds);
     }
   }, [history, historyIndex, onNodesChange, onEdgesChange, nodeManager, cleanupViewerItems]);
 
-  // 🎯 선택/복사/붙여넣기 기능
+  // 선택/복사/붙여넣기 기능
   const selectAllNodes = useCallback(() => {
     saveToHistory();
     const updatedNodes = nodes.map(node => ({ ...node, selected: true }));
@@ -415,7 +430,7 @@ function Workspace({
     onEdgesChange(updatedEdges);
   }, [internalClipboard, nodes, edges, onNodesChange, onEdgesChange, saveToHistory, nodeManager]);
 
-  // ⌨️ 키보드 단축키
+  // 키보드 단축키
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       const activeElement = document.activeElement;
@@ -438,22 +453,64 @@ function Workspace({
     return () => { window.removeEventListener('keydown', handleKeyDown); };
   }, [selectAllNodes, copySelectedNodes, pasteNodes, undo, redo]);
 
-  // 🧩 노드 타입들 동적 로딩
+  // 🆕 노드 타입들 동적 로딩 (플러그인 포함) - 최적화된 부분
   const nodeTypes = useMemo(() => {
     const types: any = {};
+    
+    // 기존 컴파일된 노드들
     Object.entries(nodeModules).forEach(([path, module]: [string, any]) => {
       const fileName = path.split('/').pop()?.replace('.tsx', '');
       if (fileName && module.default) {
         types[fileName.charAt(0).toLowerCase() + fileName.slice(1)] = module.default;
       }
     });
+    
+    // 🎯 핵심 수정: 플러그인 노드들을 실제 PluginNode 컴포넌트로 연결
+    pluginNodes.forEach(pluginConfig => {
+      types[pluginConfig.type] = PluginNode;
+    });
+    
+    console.log('📋 Available node types:', Object.keys(types));
     return types;
-  }, []);
+  }, [pluginNodes.length, pluginNodes.map(p => p.type).join(',')]); // 더 안정적인 의존성
 
-  // ➕ 사이드바에서 노드 추가
+  // 사이드바에서 노드 추가 (플러그인 지원)
   const addNodeFromSidebar = useCallback((nodeType: string) => {
     saveToHistory();
-    const nodeConfig: any = Object.values(nodeModules).find(m => (m as any).config.type === nodeType)?.config;
+    
+    // 플러그인 노드인지 확인
+    if (nodeType.startsWith('plugin:')) {
+      const pluginId = nodeType.replace('plugin:', '');
+      const pluginManager = PluginManager.getInstance();
+      const plugin = pluginManager.getPlugin(pluginId);
+      
+      if (plugin) {
+        // 🎯 플러그인 노드 데이터 초기화
+        const initialData: any = {
+          pluginId: pluginId,
+          // 입력 필드들 기본값 설정
+          ...plugin.manifest.inputs.reduce((acc, input) => {
+            acc[input.id] = '';
+            return acc;
+          }, {} as any)
+        };
+
+        const newNode: Node = {
+          id: nodeManager.generateNewId().toString(),
+          type: nodeType,
+          position: { x: Math.random() * 300 + 200, y: Math.random() * 300 + 150 },
+          data: initialData
+        };
+        
+        const updatedNodes = [...nodes, newNode];
+        onNodesChange(updatedNodes);
+        console.log(`🔌 Added plugin node: ${plugin.manifest.name}`);
+        return;
+      }
+    }
+    
+    // 기존 컴파일된 노드들 처리
+    const nodeConfig: any = Object.values(nodeModules).find(m => (m as any).config?.type === nodeType)?.config;
     if (!nodeConfig) return;
     
     const defaultData: Record<string, any> = {};
@@ -472,7 +529,7 @@ function Workspace({
     onNodesChange(updatedNodes);
   }, [nodes, onNodesChange, saveToHistory, nodeManager]);
 
-  // 🔗 노드 연결
+  // 노드 연결
   const onConnect = useCallback(
     (params: Connection | Edge) => {
       saveToHistory();
@@ -482,22 +539,20 @@ function Workspace({
     [edges, onEdgesChange, saveToHistory]
   );
 
-  // 💾 워크플로우 저장 (뷰어 정보 포함) - 🆕 Store에 경로 저장 추가
+  // 워크플로우 저장
   const saveWorkflow = useCallback(async () => {
     try {
       const flow = reactFlowInstance.toObject();
       
-      // 🆕 뷰어 정보도 포함해서 저장
       const workflowData = {
         ...flow,
-        viewerItems // 뷰어 아이템 추가
+        viewerItems
       };
       
       const result = await invoke('save_workflow_to_desktop', { 
         workflowData: JSON.stringify(workflowData, null, 2) 
       }) as string;
 
-      // 🆕 저장 성공시 Store에 파일 경로 저장
       if (result && typeof result === 'string') {
         try {
           const store = await getAppStore();
@@ -519,7 +574,7 @@ function Workspace({
     }
   }, [reactFlowInstance, viewerItems]);
 
-  // 📂 워크플로우 불러오기 (뷰어 정보 포함)
+  // 워크플로우 불러오기
   const loadWorkflow = useCallback(async () => {
     try {
       const workflowData = await invoke('load_workflow_from_desktop') as string;
@@ -532,16 +587,13 @@ function Workspace({
         onNodesChange(flow.nodes);
         nodeManager.syncWithNodes(flow.nodes);
         
-        // 노드 로드시 뷰어 목록 정리
         const loadedNodeIds = new Set(flow.nodes.map((node: Node) => node.id));
         cleanupViewerItems(loadedNodeIds);
       }
       if (Array.isArray(flow.edges)) onEdgesChange(flow.edges);
       if (flow.viewport) reactFlowInstance.setViewport(flow.viewport);
       
-      // 🆕 뷰어 정보도 복원 (있는 경우에만)
       if (Array.isArray(flow.viewerItems)) {
-        // 실제 존재하는 노드들만 필터링
         const currentNodeIds = new Set(flow.nodes?.map((node: Node) => node.id) || []);
         const validViewerItems = flow.viewerItems.filter((item: any) => 
           currentNodeIds.has(item.nodeId)
@@ -549,7 +601,6 @@ function Workspace({
         onViewerItemsChange(validViewerItems);
         console.log(`✅ Viewer restored: ${validViewerItems.length} items`);
       } else {
-        // 뷰어 정보가 없으면 초기화
         onViewerItemsChange([]);
       }
       
@@ -564,7 +615,7 @@ function Workspace({
     }
   }, [reactFlowInstance, onNodesChange, onEdgesChange, nodeManager, cleanupViewerItems, onViewerItemsChange]);
 
-  // 📎 워크플로우 추가 (뷰어 정보 병합)
+  // 워크플로우 추가
   const appendWorkflow = useCallback(async () => {
     try {
       const workflowData = await invoke('load_workflow_from_desktop') as string;
@@ -594,7 +645,6 @@ function Workspace({
       onNodesChange(updatedNodes);
       onEdgesChange(updatedEdges);
       
-      // 🆕 뷰어 정보도 추가 (ID 매핑 적용)
       if (Array.isArray(flow.viewerItems) && flow.viewerItems.length > 0) {
         const remappedViewerItems = flow.viewerItems
           .map((item: any) => {
@@ -619,7 +669,7 @@ function Workspace({
     }
   }, [nodes, edges, viewerItems, onNodesChange, onEdgesChange, onViewerItemsChange, saveToHistory, nodeManager]);
 
-  // 👁️ 뷰어 페이지로 이동
+  // 뷰어 페이지로 이동
   const openViewer = useCallback(() => {
     if (viewerItems.length === 0) {
       alert('⚠️ No nodes added to viewer yet. Click the eye button on nodes to add them.');
@@ -632,7 +682,10 @@ function Workspace({
 
   return (
     <div style={{ width: '100vw', height: '100vh', display: 'flex' }}>
-      <Sidebar onAddNode={addNodeFromSidebar} />
+      <Sidebar 
+        onAddNode={addNodeFromSidebar} 
+        pluginNodes={pluginNodes}
+      />
       <div style={{ flex: 1, position: 'relative' }}>
         
         {/* 상단 버튼들 */}
@@ -652,14 +705,12 @@ function Workspace({
             Append
           </button>
 
-          {/* 뷰어 버튼 */}
           <button onClick={openViewer} className="workspace-button viewer">
             <Eye size={14} />
             Viewer ({viewerItems.length})
           </button>
         </div>
         
-        {/* 🔧 수정: WorkflowProvider 제거 (App에서 관리) */}
         <ReactFlow
           nodes={nodes}
           edges={edges}

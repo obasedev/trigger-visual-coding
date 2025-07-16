@@ -1,0 +1,42 @@
+{
+  "id": "simple-file-creator",
+  "name": "File Creator",
+  "version": "1.0.0",
+  "description": "test file creator",
+  "category": "File",
+  "color": "#2196F3",
+  "inputs": [
+    {
+      "id": "filePath",
+      "type": "string",
+      "label": "생성 경로"
+    },
+    {
+      "id": "fileName",
+      "type": "string",
+      "label": "파일 이름"
+    },
+    {
+      "id": "content",
+      "type": "string", 
+      "label": "파일 내용"
+    }
+  ],
+  "outputs": [
+    {
+      "id": "fileName",
+      "type": "string",
+      "label": "파일 이름"
+    },
+    {
+      "id": "content",
+      "type": "string",
+      "label": "파일 내용"
+    },
+    {
+      "id": "filePath",
+      "type": "string",
+      "label": "생성된 파일 경로"
+    }
+  ]
+}

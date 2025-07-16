@@ -1,7 +1,9 @@
 // lib.rs - Tauri 앱 설정 및 노드 자동 등록
 mod nodes;
+mod plugin_system;  // 🆕 플러그인 시스템 모듈 추가
 
 use nodes::*;
+use plugin_system::*;  // 🆕 플러그인 시스템 함수들 가져오기
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -28,6 +30,10 @@ pub fn run() {
             video_download_node,
             file_path_node, // 🆕 이 한 줄만 추가
             file_to_clipboard_node,
+            run_command_node,
+            scan_plugins_folder,
+            read_plugin_file,
+            get_plugins_folder_info,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
