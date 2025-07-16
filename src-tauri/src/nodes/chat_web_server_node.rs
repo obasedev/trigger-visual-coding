@@ -26,6 +26,7 @@ pub struct ChatWebServerResult {
 #[derive(Debug, Deserialize)]
 struct ChatMessage {
     message: String,
+    #[allow(dead_code)]
     sender: Option<String>,
 }
 
@@ -214,7 +215,7 @@ async fn stop_cloudflare_tunnel(node_id: String) -> Result<(), String> {
     let tunnel_registry = get_tunnel_registry();
     let mut tunnels = tunnel_registry.write().await;
 
-    if let Some(mut child) = tunnels.remove(&node_id) {
+    if let Some(child) = tunnels.remove(&node_id) {
         println!("🛑 Stopping Cloudflare tunnel for node {}", node_id);
 
         // 🔧 Tauri v2: CommandChild::kill() 사용
@@ -1007,7 +1008,7 @@ pub async fn stop_all_chat_servers() {
     let tunnel_registry = get_tunnel_registry();
     let mut tunnels = tunnel_registry.write().await;
 
-    for (node_id, mut child) in tunnels.drain() {
+    for (node_id, child) in tunnels.drain() {
         let _ = child.kill();
         println!("🛑 터널 중지됨: 노드 {}", node_id);
     }

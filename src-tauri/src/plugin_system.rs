@@ -1,9 +1,9 @@
 // src-tauri/src/plugin_system.rs
-use std::path::{Path, PathBuf};
-use tauri::{AppHandle, Manager};
+use std::path::PathBuf;
+use tauri::AppHandle;
 
 /// 현재 실행 환경에 맞는 플러그인 폴더 경로 반환
-fn get_plugins_folder_path(app_handle: &AppHandle) -> Result<PathBuf, String> {
+fn get_plugins_folder_path(_app_handle: &AppHandle) -> Result<PathBuf, String> {
     // 개발 중인지 빌드된 앱인지 확인
     let is_dev = cfg!(debug_assertions);
     

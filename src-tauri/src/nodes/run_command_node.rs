@@ -1,14 +1,7 @@
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use tauri::command;
 use std::process::{Command, Stdio};
 use std::path::PathBuf;
-
-#[derive(Debug, Deserialize)]
-pub struct RunCommandParams {
-    pub command: String,
-    pub args: Option<Vec<String>>,
-    pub cwd: Option<String>,
-}
 
 #[derive(Debug, Serialize)]
 pub struct RunCommandResult {

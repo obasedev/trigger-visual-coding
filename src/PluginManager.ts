@@ -86,7 +86,7 @@ export class PluginManager {
           fileName: 'logic.js'
         });
       } catch (e) {
-        console.warn(`⚠️ No logic.js found for plugin ${pluginId} (optional)`);
+        // logic.js는 선택적 파일이므로 경고 없이 무시
       }
       
       // 4. 플러그인 등록

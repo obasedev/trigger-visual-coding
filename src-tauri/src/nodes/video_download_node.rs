@@ -269,6 +269,7 @@ async fn download_single_video_optimized(
 
     #[cfg(target_os = "windows")]
     {
+        #[allow(unused_imports)]
         use std::os::windows::process::CommandExt;
         cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
     }
@@ -509,6 +510,7 @@ async fn convert_to_mov_optimized(
     // FFmpeg도 CMD 창 숨기기
     #[cfg(target_os = "windows")]
     {
+        #[allow(unused_imports)]
         use std::os::windows::process::CommandExt;
         cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
     }

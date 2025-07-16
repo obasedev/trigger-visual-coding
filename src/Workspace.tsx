@@ -90,6 +90,9 @@ function Workspace({
   // 플러그인 상태 추가
   const [pluginNodes, setPluginNodes] = useState<any[]>([]);
   
+  // 플러그인 노드 배열을 안정화 (React Flow 경고 방지)
+  const stablePluginNodes = useMemo(() => pluginNodes, [JSON.stringify(pluginNodes)]);
+  
   const reactFlowInstance = useReactFlow();
   const nodeManager = getNodeManager();
 
@@ -466,13 +469,23 @@ function Workspace({
     });
     
     // 🎯 핵심 수정: 플러그인 노드들을 실제 PluginNode 컴포넌트로 연결
-    pluginNodes.forEach(pluginConfig => {
+    stablePluginNodes.forEach(pluginConfig => {
       types[pluginConfig.type] = PluginNode;
     });
     
+    // 🔧 동적 플러그인 노드 매핑: 모든 plugin: 접두사를 가진 노드를 PluginNode로 연결
+    const proxyTypes = new Proxy(types, {
+      get(target, prop) {
+        if (typeof prop === 'string' && prop.startsWith('plugin:')) {
+          return PluginNode;
+        }
+        return target[prop];
+      }
+    });
+    
     console.log('📋 Available node types:', Object.keys(types));
-    return types;
-  }, [pluginNodes.length, pluginNodes.map(p => p.type).join(',')]); // 더 안정적인 의존성
+    return proxyTypes;
+  }, [stablePluginNodes]); // 안정화된 플러그인 노드 배열 사용
 
   // 사이드바에서 노드 추가 (플러그인 지원)
   const addNodeFromSidebar = useCallback((nodeType: string) => {
