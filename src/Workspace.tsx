@@ -14,6 +14,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { invoke } from '@tauri-apps/api/core';
+import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { Store } from '@tauri-apps/plugin-store';
 import { Save, FolderOpen, Eye } from 'lucide-react';
 import Sidebar from './Sidebar';

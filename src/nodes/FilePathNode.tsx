@@ -10,6 +10,7 @@ import type {
 } from '../types';
 
 import { useWorkflow, useViewerStatus } from '../WorkflowContext';
+import DropTargetManager from '../DropTargetManager';
 
 function FilePathNode({ id, data, selected }: FilePathNodeProps) {
   const { updateNodeData, executeNextNodes } = useWorkflow();
@@ -49,126 +50,70 @@ function FilePathNode({ id, data, selected }: FilePathNodeProps) {
     }
   }, []); // 마운트시에만 한 번 실행
 
-  // 🎯 Tauri v2 두 가지 방식 모두 시도 (🔧 수정: 간단하고 안정적으로)
+  // 🎯 파일 드롭 처리 함수 (DropTargetManager에서 호출)
+  const handleFilesDrop = useCallback((droppedPaths: string[]) => {
+    console.log(`📁 Files dropped to FilePathNode ${id}:`, droppedPaths);
+    
+    // 🔧 함수형 업데이트로 누적 보장
+    setFilePaths(currentPaths => {
+      const uniquePaths = [...new Set([...currentPaths, ...droppedPaths])];
+      
+      const pathString = uniquePaths.join('\n');
+      updateNodeData(id, {
+        filePaths: uniquePaths,
+        outputData: { text: pathString }
+      });
+      
+      console.log(`📤 Paths updated: ${uniquePaths.length} files (added ${droppedPaths.length} new)`);
+      return uniquePaths;
+    });
+    
+    setIsDragOver(false);
+  }, [id, updateNodeData]);
+
+  // 🎯 DropTargetManager 등록 (전역 리스너는 DropTargetManager에서 처리)
   useEffect(() => {
-    let unlistenDrop: (() => void) | null = null;
-    let unlistenHover: (() => void) | null = null;
-    let unlistenCancelled: (() => void) | null = null;
-
-    const setupTauriListeners = async () => {
-      try {
-        // 방법 1: getCurrentWebview 방식 시도
-        try {
-          const { getCurrentWebview } = await import('@tauri-apps/api/webview');
-          
-          unlistenDrop = await getCurrentWebview().onDragDropEvent((event) => {
-            console.log('🎯 Tauri webview drag-drop event:', event);
-            
-            // 🔧 수정: 파일 드롭 이벤트만 처리 (원래 방식)
-            if (event.payload && Array.isArray(event.payload.paths)) {
-              const droppedPaths = event.payload.paths as string[];
-              console.log('📁 Files dropped (webview method):', droppedPaths);
-              
-              // 🔧 함수형 업데이트로 누적 보장
-              setFilePaths(currentPaths => {
-                const uniquePaths = [...new Set([...currentPaths, ...droppedPaths])];
-                
-                const pathString = uniquePaths.join('\n');
-                updateNodeData(id, {
-                  filePaths: uniquePaths,
-                  outputData: { text: pathString }
-                });
-                
-                console.log(`📤 Paths updated: ${uniquePaths.length} files (added ${droppedPaths.length} new)`);
-                return uniquePaths;
-              });
-              
-              setIsDragOver(false);
-            }
-          });
-          
-          console.log('✅ Webview drag-drop listener setup complete');
-          return; // 성공하면 여기서 종료
-          
-        } catch (webviewError) {
-          console.log('💡 Webview method failed, trying classic method...');
-        }
-        
-        // 방법 2: 클래식 이벤트 방식
-        const { listen } = await import('@tauri-apps/api/event');
-        
-        unlistenDrop = await listen('tauri://file-drop', (event) => {
-          console.log('🎯 Tauri classic file-drop event:', event);
-          
-          if (event.payload && Array.isArray(event.payload)) {
-            const droppedPaths = event.payload as string[];
-            console.log('📁 Files dropped (classic method):', droppedPaths);
-            
-            // 🔧 함수형 업데이트로 누적 보장
-            setFilePaths(currentPaths => {
-              const uniquePaths = [...new Set([...currentPaths, ...droppedPaths])];
-              
-              const pathString = uniquePaths.join('\n');
-              updateNodeData(id, {
-                filePaths: uniquePaths,
-                outputData: { text: pathString }
-              });
-              
-              console.log(`📤 Paths updated: ${uniquePaths.length} files (added ${droppedPaths.length} new)`);
-              return uniquePaths;
-            });
-            
-            setIsDragOver(false);
-          }
-        });
-
-        unlistenHover = await listen('tauri://file-drop-hover', (event) => {
-          console.log('🎯 Tauri hover event');
-          setIsDragOver(true);
-        });
-
-        unlistenCancelled = await listen('tauri://file-drop-cancelled', (event) => {
-          console.log('🎯 Tauri drop cancelled');
-          setIsDragOver(false);
-        });
-
-        console.log('✅ Classic drag-drop listeners setup complete');
-
-      } catch (error) {
-        console.error('❌ All Tauri methods failed:', error);
-        console.log('💡 Falling back to dialog-only mode');
-      }
-    };
-
-    setupTauriListeners();
+    const dropManager = DropTargetManager.getInstance();
+    
+    // 🔧 콜백 등록 (첫 번째 노드 등록 시 자동으로 전역 리스너 설정됨)
+    dropManager.registerDropCallback(id, handleFilesDrop);
 
     return () => {
-      if (unlistenDrop) unlistenDrop();
-      if (unlistenHover) unlistenHover();
-      if (unlistenCancelled) unlistenCancelled();
+      // 🔧 콜백 해제
+      dropManager.unregisterDropCallback(id);
     };
-  }, []); // 🔧 의존성 완전 제거
+  }, [id, handleFilesDrop]); // 🔧 handleFilesDrop 의존성 추가
 
-  // 마우스 호버 이벤트 (드롭 영역 구분용)
+  // 🎯 선택된 노드를 액티브 타겟으로 설정
+  useEffect(() => {
+    const dropManager = DropTargetManager.getInstance();
+    
+    if (selected) {
+      // 🔧 노드가 선택되면 액티브 타겟으로 설정
+      dropManager.setActiveTarget(id);
+      console.log(`🎯 FilePathNode ${id} selected - Set as active target`);
+    } else {
+      // 🔧 노드 선택 해제되면 액티브 타겟 해제
+      dropManager.clearActiveTarget(id);
+      console.log(`🎯 FilePathNode ${id} deselected - Clear active target`);
+    }
+  }, [selected, id]);
+
+  // 마우스 호버 이벤트 (시각적 효과만)
   const handleMouseEnter = useCallback(() => {
     setIsHovering(true);
-    console.log('🎯 Mouse entered FilePathNode drop zone');
   }, []);
 
   const handleMouseLeave = useCallback(() => {
     setIsHovering(false);
-    setIsDragOver(false);
-    console.log('🎯 Mouse left FilePathNode drop zone');
   }, []);
 
   // 브라우저 드래그앤드롭 이벤트 (시각적 피드백용)
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (isHovering) {
-      setIsDragOver(true);
-    }
-  }, [isHovering]);
+    setIsDragOver(true);
+  }, []);
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -183,9 +128,16 @@ function FilePathNode({ id, data, selected }: FilePathNodeProps) {
     e.preventDefault();
     e.stopPropagation();
     setIsDragOver(false);
-    console.log('🎯 Browser drop event (will be handled by Tauri)');
-    // Tauri 이벤트에서 처리하므로 여기서는 아무것도 안 함
-  }, []);
+    
+    // 🎯 선택된 노드에서만 드롭 허용
+    if (selected) {
+      const dropManager = DropTargetManager.getInstance();
+      dropManager.setActiveTarget(id);
+      console.log(`🎯 Drop on selected FilePathNode ${id} - Target set`);
+    } else {
+      console.log(`🎯 Drop on unselected FilePathNode ${id} - Ignored`);
+    }
+  }, [id, selected]);
 
   // Dialog API로 파일 선택 (누적 방식) (🔧 수정: 함수형 업데이트)
   const selectFiles = useCallback(async () => {
