@@ -2,6 +2,9 @@
 
 use std::process::Command;
 
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
 #[tauri::command]
 pub fn cli_node(command: String) -> Result<String, String> {
     println!("🖥️ Executing CLI command: {}", command);
@@ -16,8 +19,10 @@ pub fn cli_node(command: String) -> Result<String, String> {
 
     // Windows와 Unix 계열 운영체제에 따라 다른 명령어 실행
     let output = if cfg!(target_os = "windows") {
+        // Windows에서 따옴표 처리 개선
         Command::new("cmd")
-            .args(["/C", &command])
+            .raw_arg("/C")
+            .raw_arg(&command)
             .output()
     } else {
         Command::new("sh")

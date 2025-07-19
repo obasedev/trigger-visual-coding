@@ -13,7 +13,7 @@ pub mod text_file_editor_node;
 pub mod video_download_node;
 pub mod workflow_storage;
 // 함수들을 재export (자동 등록을 위해)
-pub use cli_ai_node::cli_ai_node; // 🆕 CLI AI 노드 추가
+pub use cli_ai_node::{cli_ai_node, update_cli_result}; // 🆕 CLI AI 노드 + 업데이트 함수
 pub use chat_web_server_node::{
     chat_web_server_node,
     get_chat_server_info,   // 🆕 추가

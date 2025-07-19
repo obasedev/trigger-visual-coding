@@ -1,0 +1,26 @@
+[
+  {
+    "user_input": "1바탕화면에 어떤 파일들이 있지?",
+    "ai_response": "이 명령어를 실행하면 사용자님의 바탕화면에 있는 모든 파일과 폴더 목록을 보여드릴 것입니다. 바탕화면에 어떤 파일들이 있는지 확인하실 수 있습니",
+    "cli_command": "dir \"C:\\Users\\Work\\Desktop\"",
+    "cli_result": " Volume in drive C has no label.\r\n Volume Serial Number is D6EB-5D87\r\n\r\n Directory of C:\\Users\\Work\\Desktop\r\n\r\n2025-07-19  오후 04:02    <DIR>          .\r\n2025-07-19  오후 04:02    <DIR>          ..\r\n2024-05-26  오후 10:52        14,426,737 123.mp4\r\n2025-04-05  오후 02:30    <DIR>          Adobe\r\n2025-05-26  오후 10:38    <DIR>          Adobe Premiere Pro Audio Previews\r\n2025-06-03  오후 03:05    <DIR>          Adobe Premiere Pro Auto-Save\r\n2025-05-26  오후 10:38    <DIR>          Adobe Premiere Pro Captured Video\r\n2025-07-14  오후 09:34        15,725,568 automation-gui.exe\r\n2025-07-19  오후 02:33             2,351 Claude.lnk\r\n2025-07-18  오후 01:52            15,255 CliChatWebServerNode.tsx\r\n2025-07-18  오후 01:52            20,584 cli_ui.rs\r\n2025-05-17  오후 07:22               510 D.lnk\r\n2021-12-29  오후 03:22         5,349,376 DefaultMetric.rte\r\n2025-07-18  오전 03:48    <DIR>          Downloads\r\n2025-07-13  오후 08:46    <DIR>          folder\r\n2025-07-12  오후 10:30             2,044 Google Drive.lnk\r\n2025-07-17  오후 10:05    <DIR>          League of Legends\r\n2025-07-18  오후 04:11             3,999 my_workflow.flow.json\r\n2025-07-17  오후 09:28            21,097 Simple CLI.html\r\n2025-07-18  오전 12:49            20,584 simple_cli_ui.rs\r\n2025-07-13  오전 05:23    <DIR>          StarCraft\r\n2025-07-04  오후 01:34    <DIR>          tool\r\n2025-06-05  오후 10:51    <DIR>          video-downloader\r\n2025-07-04  오후 01:32    <DIR>          로드맵\r\n2025-07-04  오후 01:41    <DIR>          박경민\r\n2025-07-19  오후 03:10    <DIR>          새로운\r\n2025-05-16  오후 05:07    <DIR>          새로운 앱 작성\r\n2025-07-19  오후 03:15    <DIR>          오 오\r\n2025-07-04  오후 01:36    <DIR>          완료된 코드\r\n2025-05-17  오후 07:39               554 클라우드.lnk\r\n2025-04-08  오후 08:38    <DIR>          프리미어프로\r\n              12 File(s)     35,588,659 bytes\r\n              19 Dir(s)  281,730,281,472 bytes free\r\n"
+  },
+  {
+    "user_input": "그러면 이중에 어떤 동영상 파일이 잇어>?",
+    "ai_response": "이 명령어를 실행하면 바탕화면 폴더에 있는 모든 MP4 동영상 파일 목록을 보여드릴 것입니다. 동영상 파일 이름과 크기 등의 정보를 확인하",
+    "cli_command": "dir \"C:\\Users\\Work\\Desktop\" *.mp4",
+    "cli_result": " Volume in drive C has no label.\r\n Volume Serial Number is D6EB-5D87\r\n\r\n Directory of C:\\Users\\Work\\Desktop\r\n\r\n2025-07-19  오후 04:02    <DIR>          .\r\n2025-07-19  오후 04:02    <DIR>          ..\r\n2024-05-26  오후 10:52        14,426,737 123.mp4\r\n2025-04-05  오후 02:30    <DIR>          Adobe\r\n2025-05-26  오후 10:38    <DIR>          Adobe Premiere Pro Audio Previews\r\n2025-06-03  오후 03:05    <DIR>          Adobe Premiere Pro Auto-Save\r\n2025-05-26  오후 10:38    <DIR>          Adobe Premiere Pro Captured Video\r\n2025-07-14  오후 09:34        15,725,568 automation-gui.exe\r\n2025-07-19  오후 02:33             2,351 Claude.lnk\r\n2025-07-18  오후 01:52            15,255 CliChatWebServerNode.tsx\r\n2025-07-18  오후 01:52            20,584 cli_ui.rs\r\n2025-05-17  오후 07:22               510 D.lnk\r\n2021-12-29  오후 03:22         5,349,376 DefaultMetric.rte\r\n2025-07-18  오전 03:48    <DIR>          Downloads\r\n2025-07-13  오후 08:46    <DIR>          folder\r\n2025-07-12  오후 10:30             2,044 Google Drive.lnk\r\n2025-07-17  오후 10:05    <DIR>          League of Legends\r\n2025-07-18  오후 04:11             3,999 my_workflow.flow.json\r\n2025-07-17  오후 09:28            21,097 Simple CLI.html\r\n2025-07-18  오전 12:49            20,584 simple_cli_ui.rs\r\n2025-07-13  오전 05:23    <DIR>          StarCraft\r\n2025-07-04  오후 01:34    <DIR>          tool\r\n2025-06-05  오후 10:51    <DIR>          video-downloader\r\n2025-07-04  오후 01:32    <DIR>          로드맵\r\n2025-07-04  오후 01:41    <DIR>          박경민\r\n2025-07-19  오후 03:10    <DIR>          새로운\r\n2025-05-16  오후 05:07    <DIR>          새로운 앱 작성\r\n2025-07-19  오후 03:15    <DIR>          오 오\r\n2025-07-04  오후 01:36    <DIR>          완료된 코드\r\n2025-05-17  오후 07:39               554 클라우드.lnk\r\n2025-04-08  오후 08:38    <DIR>          프리미어프로\r\n              12 File(s)     35,588,659 bytes\r\n\r\n Directory of C:\\Users\\Work\\Desktop\\folder\\localai\\ai\\src-tauri\r\n\r\n\n(Warning: File Not Found\r\n)"
+  },
+  {
+    "user_input": "그러면 123동영상파일을 234로 이름바꿔줄래?",
+    "ai_response": "위 명령어를 실행",
+    "cli_command": "ren \"C:\\Users\\Work\\Desktop\\123.mp4\" \"234.mp4\"",
+    "cli_result": "Command executed successfully (no output)"
+  },
+  {
+    "user_input": "안녕?",
+    "ai_response": "사용자님께서 간단한 인사를 보내주셨습니다. 이 경우 파일 작업이 필요하지 않으므로 명령어를 제공할 필요가 없습니다. 대신 사용자님의 인사에 친절하게 답변드리겠습니다.",
+    "cli_command": null,
+    "cli_result": null
+  }
+]

@@ -45,6 +45,27 @@ function CliAiNode({ id, data, selected }: CliAiNodeProps) {
     setLocalModel(data?.model || 'claude-3-haiku-20240307');
   }, [data?.userInput, data?.apiKey, data?.model]);
 
+  // CLI 결과 변경 감지 및 대화 기록 즉시 업데이트 (무한루프 방지)
+  const [lastUpdatedCliResult, setLastUpdatedCliResult] = useState<string>('');
+  
+  useEffect(() => {
+    const currentCliResult = data?.cliResult || '';
+    if (currentCliResult && 
+        currentCliResult.trim() && 
+        currentCliResult !== lastUpdatedCliResult) {
+      // CLI 결과가 새로 추가되었을 때만 업데이트
+      invoke('update_cli_result', { 
+        nodeId: id, 
+        cliResult: currentCliResult 
+      }).then(() => {
+        console.log(`🔄 Updated CLI result for node ${id}`);
+        setLastUpdatedCliResult(currentCliResult); // 업데이트 완료 기록
+      }).catch((error) => {
+        console.error(`❌ Failed to update CLI result: ${error}`);
+      });
+    }
+  }, [data?.cliResult, id, lastUpdatedCliResult]);
+
   // 아웃풋 텍스트를 3줄로 제한하는 함수
   const truncateOutput = (text: string, defaultText: string = 'No output yet') => {
     if (!text) return defaultText;

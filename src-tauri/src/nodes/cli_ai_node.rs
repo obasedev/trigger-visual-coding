@@ -2,45 +2,105 @@
 
 use serde_json::json;
 use std::process::Command;
-use std::path::Path;
-use std::collections::HashMap;
-use std::sync::Mutex;
-use std::sync::LazyLock;
+use std::path::{Path, PathBuf};
+use std::fs;
+
+// 언어 감지를 위한 enum (현재 미사용, 향후 사용 예정)
+#[allow(dead_code)]
+#[derive(Clone, Debug, PartialEq)]
+enum Language {
+    Korean,
+    English,
+    Chinese,
+    Japanese,
+}
 
 // 대화 기록을 위한 구조체
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 struct ConversationEntry {
     user_input: String,
     ai_response: String,
+    cli_command: Option<String>,
     cli_result: Option<String>,
 }
 
-// 전역 세션 저장소 (노드별로 분리)
-static SESSION_STORAGE: LazyLock<Mutex<HashMap<String, Vec<ConversationEntry>>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
-
-// 세션 관리 함수들
-fn get_conversation_history(node_id: &str) -> Vec<ConversationEntry> {
-    let sessions = SESSION_STORAGE.lock().unwrap();
-    sessions.get(node_id).cloned().unwrap_or_default()
+// JSON 파일 기반 세션 관리 함수들
+fn get_conversation_file_path(node_id: &str) -> PathBuf {
+    let mut path = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    // src-tauri 폴더에서 상위 디렉토리로 이동 (프로젝트 루트)
+    if path.file_name() == Some(std::ffi::OsStr::new("src-tauri")) {
+        path.pop();
+    }
+    path.push("store");
+    path.push(format!("cliainode_{}.json", node_id));
+    path
 }
 
-fn save_conversation(node_id: &str, user_input: &str, ai_response: &str, cli_result: Option<&str>) {
-    let mut sessions = SESSION_STORAGE.lock().unwrap();
-    let history = sessions.entry(node_id.to_string()).or_insert_with(Vec::new);
+fn ensure_store_directory() -> Result<(), std::io::Error> {
+    let mut store_path = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    // src-tauri 폴더에서 상위 디렉토리로 이동 (프로젝트 루트)
+    if store_path.file_name() == Some(std::ffi::OsStr::new("src-tauri")) {
+        store_path.pop();
+    }
+    store_path.push("store");
+    if !store_path.exists() {
+        fs::create_dir_all(&store_path)?;
+    }
+    Ok(())
+}
+
+fn get_conversation_history(node_id: &str) -> Vec<ConversationEntry> {
+    let file_path = get_conversation_file_path(node_id);
+    
+    if !file_path.exists() {
+        return Vec::new();
+    }
+    
+    match fs::read_to_string(&file_path) {
+        Ok(content) => {
+            match serde_json::from_str::<Vec<ConversationEntry>>(&content) {
+                Ok(history) => history,
+                Err(_) => Vec::new()
+            }
+        },
+        Err(_) => Vec::new()
+    }
+}
+
+fn save_conversation(node_id: &str, user_input: &str, ai_response: &str, cli_command: Option<&str>, cli_result: Option<&str>) {
+    if let Err(e) = ensure_store_directory() {
+        println!("❌ Failed to create store directory: {}", e);
+        return;
+    }
+    
+    let mut history = get_conversation_history(node_id);
     
     // 새 대화 추가
     history.push(ConversationEntry {
         user_input: user_input.to_string(),
         ai_response: ai_response.to_string(),
+        cli_command: cli_command.map(|s| s.to_string()),
         cli_result: cli_result.map(|s| s.to_string()),
     });
     
-    // 최근 3개만 유지
-    if history.len() > 3 {
+    // 최근 7개만 유지
+    if history.len() > 7 {
         history.remove(0);
     }
     
-    println!("💾 Saved conversation for node {}: {} entries", node_id, history.len());
+    let file_path = get_conversation_file_path(node_id);
+    match serde_json::to_string_pretty(&history) {
+        Ok(json_content) => {
+            if let Err(e) = fs::write(&file_path, json_content) {
+                println!("❌ Failed to save conversation: {}", e);
+            } else {
+                println!("💾 Saved conversation for node {} to file: {} entries", node_id, history.len());
+            }
+        },
+        Err(e) => {
+            println!("❌ Failed to serialize conversation: {}", e);
+        }
+    }
 }
 
 fn format_conversation_context(history: &[ConversationEntry]) -> String {
@@ -52,6 +112,9 @@ fn format_conversation_context(history: &[ConversationEntry]) -> String {
     for (i, entry) in history.iter().enumerate() {
         context.push_str(&format!("#{}: User: {}\n", i + 1, entry.user_input));
         context.push_str(&format!("#{}: AI: {}\n", i + 1, entry.ai_response));
+        if let Some(cli_command) = &entry.cli_command {
+            context.push_str(&format!("#{}: Generated Command: {}\n", i + 1, cli_command));
+        }
         if let Some(cli_result) = &entry.cli_result {
             context.push_str(&format!("#{}: CLI Result: {}\n", i + 1, cli_result));
         }
@@ -301,48 +364,50 @@ pub async fn cli_ai_node(user_input: String, api_key: String, model: String, cli
     let system_prompt = format!(r#"
 You are an intelligent and proactive Windows CLI assistant. You understand casual conversation and can anticipate user needs.
 
+CRITICAL LANGUAGE RULE:
+- AUTOMATICALLY detect the language of user input
+- ALWAYS respond in the SAME language as the user
+- If user writes in Korean, respond in Korean
+- If user writes in English, respond in English  
+- If user writes in Chinese, respond in Chinese
+- Match the user's language naturally and consistently
+
 RESPONSE FORMAT:
 If file operation needed: 
 COMMAND: [Windows command]
-EXPLANATION: [Response]
+EXPLANATION: [Response in user's language]
 
 If NO file operation needed:
-EXPLANATION: [Just chat response, no COMMAND line at all]
+EXPLANATION: [Just chat response in user's language, no COMMAND line at all]
 
 CORE INTELLIGENCE:
-- Understand greetings, casual talk, and mixed conversations
-- Be proactive: if someone greets you, offer to help with file operations
-- Read between the lines: "안녕?" might be start of file management conversation
-- Support any language naturally (Korean, English, etc.)
-- Use conversational tone matching the user's style
-- UNDERSTAND KOREAN CONTEXT: "바탕화면" = Desktop folder, not current directory
+- Understand natural conversation and context clues
+- Be genuinely helpful and anticipate user needs
+- Support any language naturally and respond in the same language
+- Use conversational tone that matches the user's communication style
+- Think contextually about what users actually mean, not just literal words
 
 COMMAND GENERATION:
 - Use basic Windows commands: dir, del, mkdir, copy, move, echo, type, ren, etc.
 - Be contextually smart: use current directory info and previous results
 - Use SIMPLE syntax that works on ALL Windows systems
-- Avoid advanced commands like findstr, powershell, or complex pipes
-- For file filtering: use ONE wildcard at a time (dir *.mp4) or simple dir command
+- NEVER EVER use findstr, powershell, pipes (|), or complex commands - FORBIDDEN
+- For file filtering: ONLY use simple dir with wildcards: dir *.mp4, dir *.txt, etc.
 - NEVER mix multiple wildcards in one command
 - Safe approach: avoid destructive commands without specific targets
 
-LOCATION AWARENESS:
-- When user says "바탕화면/Desktop": use %USERPROFILE%\Desktop (NO quotes!)
-- When user says "여기/here": use current directory
-- NEVER hardcode usernames - use environment variables
-- IMPORTANT: Do NOT put quotes around %USERPROFILE% - it breaks the command
+INTELLIGENT COMMAND GENERATION:
+- Connect conversation context - if you just found files in a specific location, operations on those files need the same location
+- Think about file locations and working directories - don't assume files are in current directory
+- Use the conversation history to understand where files actually are
+- When manipulating files mentioned in previous commands, maintain location context
+- Generate commands that work with the actual file locations discussed
 
-CORRECT SYNTAX EXAMPLES:
-- List desktop files: dir %USERPROFILE%\Desktop
-- Find mp4 files: dir %USERPROFILE%\Desktop\*.mp4
-- Find all videos: dir %USERPROFILE%\Desktop\*.mp4 (then try *.avi separately)
-- WRONG: dir "%USERPROFILE%\Desktop" *.mp4 (quotes + space = error)
-
-PROACTIVE BEHAVIOR:
-- Greetings → Offer file operations help
-- Casual questions → Suggest related file commands
-- Be helpful, not just reactive
-- Think about what the user might want to do next
+PROACTIVE INTELLIGENCE:
+- Be genuinely helpful and understand context
+- Anticipate what users actually need, not just respond to keywords
+- Think holistically about the user's goals
+- Provide solutions that address the core problem
 
 CURRENT DIRECTORY: {}
 
@@ -431,9 +496,10 @@ file_search_info);
     println!("🧠 Generated CLI command: {}", cli_command);
     println!("🧠 Full AI response: {}", full_response);
     
-    // 대화 기록 저장 (CLI 결과 포함)
+    // 대화 기록 저장 (CLI 명령어와 결과 포함)
     let ai_response_str = if explanation.is_empty() { full_response.to_string() } else { explanation.clone() };
-    save_conversation(&node_id, &user_input, &ai_response_str, cli_result.as_deref());
+    let cli_command_opt = if cli_command.is_empty() { None } else { Some(cli_command.as_str()) };
+    save_conversation(&node_id, &user_input, &ai_response_str, cli_command_opt, cli_result.as_deref());
     
     // JSON 형태로 반환 (프론트엔드에서 파싱할 수 있도록)
     let result = json!({
@@ -443,4 +509,42 @@ file_search_info);
     });
     
     Ok(result.to_string())
+}
+
+#[tauri::command]
+pub async fn update_cli_result(node_id: String, cli_result: String) -> Result<String, String> {
+    let file_path = get_conversation_file_path(&node_id);
+    
+    if !file_path.exists() {
+        return Err("No conversation history found".to_string());
+    }
+    
+    // 기존 대화 기록 로드
+    let mut history = get_conversation_history(&node_id);
+    
+    if history.is_empty() {
+        return Err("No conversation entries found".to_string());
+    }
+    
+    // 가장 최근 대화에 CLI 결과 추가
+    if let Some(last_entry) = history.last_mut() {
+        last_entry.cli_result = Some(cli_result.clone());
+        
+        // 파일에 다시 저장
+        match serde_json::to_string_pretty(&history) {
+            Ok(json_content) => {
+                if let Err(e) = fs::write(&file_path, json_content) {
+                    return Err(format!("Failed to update conversation: {}", e));
+                } else {
+                    println!("🔄 Updated CLI result for node {}: {}", node_id, cli_result);
+                    return Ok("CLI result updated successfully".to_string());
+                }
+            },
+            Err(e) => {
+                return Err(format!("Failed to serialize conversation: {}", e));
+            }
+        }
+    }
+    
+    Err("Failed to update CLI result".to_string())
 }

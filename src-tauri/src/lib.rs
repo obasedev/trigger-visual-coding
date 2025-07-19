@@ -33,6 +33,7 @@ pub fn run() {
             run_command_node,
             cli_ai_node, // 🆕 CLI AI 노드 추가
             cli_node, // 🆕 CLI 노드 추가
+            update_cli_result, // 🆕 CLI 결과 업데이트 함수
             scan_plugins_folder,
             read_plugin_file,
             get_plugins_folder_info,
