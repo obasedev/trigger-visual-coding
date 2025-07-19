@@ -31,6 +31,8 @@ pub fn run() {
             file_path_node, // 🆕 이 한 줄만 추가
             file_to_clipboard_node,
             run_command_node,
+            cli_ai_node, // 🆕 CLI AI 노드 추가
+            cli_node, // 🆕 CLI 노드 추가
             scan_plugins_folder,
             read_plugin_file,
             get_plugins_folder_info,

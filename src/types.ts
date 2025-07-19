@@ -42,6 +42,17 @@ export interface NodeConfig {
 }
 
 // =====================================
+// 🆕 커스텀 버튼 타입 정의
+// =====================================
+
+export interface CustomButton {
+  icon: ReactNode;
+  onClick: () => void;
+  title?: string;
+  variant?: 'default' | 'success' | 'destructive';
+}
+
+// =====================================
 // 🆕 뷰어 관련 타입 정의 (customLabel 추가)
 // =====================================
 
@@ -134,6 +145,22 @@ export interface FilePathNodeData extends BaseNodeData {
   allowMultiple: boolean;
 }
 
+// 🆕 CliNode 데이터 타입
+export interface CliNodeData extends BaseNodeData {
+  command: string;
+  output?: string;
+}
+
+// 🆕 CliAiNode 데이터 타입
+export interface CliAiNodeData extends BaseNodeData {
+  userInput: string;
+  apiKey: string;
+  model: string;
+  cliCommand?: string;
+  aiResponse?: string;
+  cliResult?: string;
+}
+
 
 // =====================================
 // BaseNode Props 타입 정의
@@ -166,6 +193,8 @@ export interface BaseNodeProps<T extends BaseNodeData = BaseNodeData> {
   isInViewer?: boolean;
   // 🆕 커스텀 실행 버튼 아이콘
   customExecuteIcon?: ReactNode;
+  // 🆕 커스텀 버튼들
+  customButtons?: CustomButton[];
 }
 
 export interface InfoRow {
@@ -262,5 +291,17 @@ export interface VideoDownloadNodeProps {
 export interface FilePathNodeProps {
   id: string;
   data: FilePathNodeData;
+  selected: boolean;
+}
+
+export interface CliNodeProps {
+  id: string;
+  data: CliNodeData;
+  selected: boolean;
+}
+
+export interface CliAiNodeProps {
+  id: string;
+  data: CliAiNodeData;
   selected: boolean;
 }

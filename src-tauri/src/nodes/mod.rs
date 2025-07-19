@@ -1,6 +1,8 @@
 // src-tauri/src/nodes/mod.rs
 // 기존 노드들 (프론트엔드와 1:1 대응)
+pub mod cli_ai_node; // 🆕 CLI AI 노드 추가
 pub mod chat_web_server_node; // 🆕 웹서버 노드 추가
+pub mod cli_node; // 🆕 CLI 노드 추가
 pub mod file_creator_node;
 pub mod file_path_node; // 🆕 추가
 pub mod file_to_clipboard_node;
@@ -11,6 +13,7 @@ pub mod text_file_editor_node;
 pub mod video_download_node;
 pub mod workflow_storage;
 // 함수들을 재export (자동 등록을 위해)
+pub use cli_ai_node::cli_ai_node; // 🆕 CLI AI 노드 추가
 pub use chat_web_server_node::{
     chat_web_server_node,
     get_chat_server_info,   // 🆕 추가
@@ -19,6 +22,7 @@ pub use chat_web_server_node::{
     stop_chat_server_node,  // 🎯 기존
     stop_chat_tunnel,       // 🆕 추가
 };
+pub use cli_node::cli_node; // 🆕 CLI 노드 추가
 pub use file_creator_node::file_creator_node;
 pub use file_path_node::file_path_node; // 🆕 추가
 pub use file_to_clipboard_node::file_to_clipboard_node;

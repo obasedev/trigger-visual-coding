@@ -10,7 +10,8 @@ import type {
   InfoRow,
   BaseNodeData,
   NodeDataOutput,
-  ExecutionMode
+  ExecutionMode,
+  CustomButton
 } from '../types';
 
 import { useWorkflow, useHandleConnection } from '../WorkflowContext';
@@ -163,7 +164,9 @@ function BaseNode<T extends BaseNodeData = BaseNodeData>({
   onRemoveFromViewer,
   isInViewer = false,
   // 🆕 커스텀 실행 버튼 아이콘
-  customExecuteIcon
+  customExecuteIcon,
+  // 🆕 커스텀 버튼들
+  customButtons
 }: BaseNodeProps<T>) {
 
   // 🆕 Context에서 뷰어 기능 가져오기 (props가 없을 때 fallback)
@@ -250,7 +253,7 @@ function BaseNode<T extends BaseNodeData = BaseNodeData>({
             <span className="node-title">{title}</span>
           </div>
           
-          {/* 🆕 버튼 그룹: 뷰어 버튼 + 실행 버튼 */}
+          {/* 🆕 버튼 그룹: 뷰어 버튼 + 커스텀 버튼들 + 실행 버튼 */}
           <div className="node-button-group">
             {/* 뷰어 버튼 - 뷰어에서는 숨김 */}
             {!isViewer && (
@@ -262,6 +265,18 @@ function BaseNode<T extends BaseNodeData = BaseNodeData>({
                 {currentIsInViewer ? <EyeOff size={12} /> : <Eye size={12} />}
               </button>
             )}
+            
+            {/* 🆕 커스텀 버튼들 */}
+            {customButtons && customButtons.map((button, index) => (
+              <button
+                key={index}
+                onClick={button.onClick}
+                className={`node-custom-button ${button.variant || 'default'}`}
+                title={button.title || ''}
+              >
+                {button.icon}
+              </button>
+            ))}
             
             {/* 실행 버튼 - 🆕 커스텀 아이콘 지원 */}
             <button onClick={handleExecute} className="node-execute-button">
