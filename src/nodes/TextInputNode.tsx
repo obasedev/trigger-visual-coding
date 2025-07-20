@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { MessageSquare } from 'lucide-react';
+import { Type, CheckCircle } from 'lucide-react';
 import BaseNode, { InputField, OutputField } from './Basenode';
 
 import type {
@@ -9,143 +9,152 @@ import type {
   ExecutionMode
 } from '../types';
 
-import { useWorkflow } from '../WorkflowContext';
+import { useWorkflow, useHandleConnection } from '../WorkflowContext';
 
 function TextInputNode({ id, data, selected }: TextInputNodeProps) {
-  const { updateNodeData, executeNextNodes } = useWorkflow();
+  const { executeNextNodes, updateNodeData } = useWorkflow();
 
-  // 기존 로컬 상태 + 실행 상태 추가
-  const [localValue, setLocalValue] = useState(data?.text || '');
   const [status, setStatus] = useState<'waiting' | 'running' | 'completed' | 'failed'>('waiting');
+  const [result, setResult] = useState<string>('');
 
-  // data prop이 외부에서 변경될 경우, 로컬 state도 동기화
+  const [localText, setLocalText] = useState('');
+
+  const isTextConnected = useHandleConnection(id, 'text');
+
   useEffect(() => {
-    setLocalValue(data?.text || '');
+    setLocalText(data?.text || '');
   }, [data?.text]);
 
-  // 타이핑 중에는 로컬 state만 업데이트
-  const handleTextChange = (newText: string) => {
-    setLocalValue(newText);
-  };
-  
-  // 입력창 포커스가 사라질 때만 본사에 최종 보고
-  const handleBlur = () => {
-    if (data?.text !== localValue) {
-      console.log(`Finalizing text for node ${id}: ${localValue}`);
-      updateNodeData(id, {
-        text: localValue,
-        outputData: {
-          text: localValue
-        }
-      });
+  const handleBlur = (key: keyof TextInputNodeData, value: string) => {
+    if (key === 'text' && !isTextConnected && data.text !== value) {
+      updateNodeData(id, { text: value });
     }
   };
 
-  // ✅ StartNode처럼 항상 다음 노드 트리거하는 executeNode
+  // ✅ useCallback으로 executeNode 함수 메모이제이션 (실행 모드 지원)
   const executeNode = useCallback(async (mode: ExecutionMode = 'triggered'): Promise<void> => {
+    // 🚨 중복 실행 방지: 이미 실행 중이면 무시
+    if (status === 'running') {
+      console.log(`⚠️ TextInputNode ${id}: Already running, skipping execution`);
+      return;
+    }
+
+    // ✅ 실행 전 필수 필드 검증
+    const currentText = data?.text?.trim() || '';
+
+    setStatus('running');
     try {
-      setStatus('running');
-      
-      console.log(`📝 Text Input Node ${id} executing... (mode: ${mode})`);
-      console.log(`📤 Providing text: "${localValue}"`);
-      
-      // 현재 텍스트 데이터 최종 업데이트
+      console.log(`📝 TextInputNode ${id}: Outputting text... (mode: ${mode})`);
+
+      setStatus('completed');
+      setResult('Text output ready');
+
       updateNodeData(id, {
-        text: localValue,
+        triggerExecution: undefined, // ✅ 트리거 상태 초기화
         outputData: {
-          text: localValue
+          textOutput: currentText
         }
       });
-      
-      setStatus('completed');
-      
-      // 🚀 StartNode처럼 항상 다음 노드들 트리거
-      executeNextNodes(id);
-      console.log(`🔗 TextInputNode: Triggering next nodes (mode: ${mode})`);
-      
-      // 2초 후 자동 상태 복귀
-      setTimeout(() => {
-        setStatus('waiting');
-      }, 2000);
-      
-    } catch (error: unknown) {
-      console.error('❌ Text Input Node failed:', error);
-      setStatus('failed');
-      
-      setTimeout(() => {
-        setStatus('waiting');
-      }, 2000);
-    }
-  }, [id, localValue, updateNodeData, executeNextNodes]);
 
-  // 외부 트리거 실행 감지
-  useEffect(() => {
-    if (data.triggerExecution && typeof data.triggerExecution === 'number') {
-      console.log(`📝 Text Input Node ${id} auto-execution triggered!`);
-      executeNode('triggered');
+      // 🎯 실행 모드에 따른 연쇄 실행 결정
+      if (mode === 'triggered') {
+        executeNextNodes(id);
+        console.log(`🔗 TextInputNode: Triggering next nodes (auto-execution)`);
+      } else {
+        console.log(`🔧 TextInputNode: Manual execution completed, no chain reaction`);
+      }
+
+      setTimeout(() => { setStatus('waiting'); setResult(''); }, 2000);
+
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      console.error('❌ Text input failed:', errorMessage, error);
+      setStatus('failed');
+      setResult(errorMessage);
+
+      // ✅ 실패시 트리거 상태 초기화 및 출력 데이터 클리어
+      updateNodeData(id, {
+        triggerExecution: undefined,
+        outputData: {
+          textOutput: ''
+        }
+      });
+
+      setTimeout(() => { setStatus('waiting'); setResult(''); }, 2000);
     }
-  }, [data.triggerExecution, executeNode]);
+  }, [id, data?.text, executeNextNodes, updateNodeData, status]);
+
+  // ✅ 트리거 실행 감지 (executeNode가 useCallback으로 안정화됨)
+  useEffect(() => {
+    if (data.triggerExecution && typeof data.triggerExecution === 'number' && status !== 'running') {
+      console.log(`📝 Text input node ${id} auto-execution triggered!`);
+      executeNode('triggered'); // 자동 트리거 모드로 실행
+    }
+  }, [data.triggerExecution, executeNode, status]);
+
+  // 연결 상태 변경시 값 초기화
+  useEffect(() => {
+    if (isTextConnected) {
+      setLocalText('');
+      updateNodeData(id, { text: '' });
+    }
+  }, [isTextConnected, id, updateNodeData]);
 
   return (
     <BaseNode<TextInputNodeData>
       id={id}
       title="Text Input"
-      icon={<MessageSquare size={16} stroke="white" />}
+      icon={<Type size={16} stroke="white" />}
       status={status}
       selected={selected}
-      onExecute={executeNode}
-      hasInput={false}
-      hasOutput={true}  // 출력 트리거 활성화
+      onExecute={executeNode} // 실행 모드 매개변수 지원
       data={data}
+      result={result}
+      description="Provides text input for workflow chains"
+      hasInput={true}  // 🟢 명시적으로 트리거 입력 핸들 활성화
+      hasOutput={true} // 🟢 명시적으로 트리거 출력 핸들 활성화
     >
-      {/* InputField에 로컬 state와 onBlur 이벤트를 연결합니다. */}
-      <div onBlur={handleBlur}>
+      <div onBlur={() => handleBlur('text', localText)}>
         <InputField
           nodeId={id}
-          label="Text to provide"
-          value={localValue}
-          placeholder="Enter text here..."
+          label="Text Input"
+          icon={<Type size={12} />}
+          value={localText}
+          placeholder="Enter your text here..."
+          onChange={setLocalText}
+          handleId="text"
+          disabled={isTextConnected}
           type="textarea"
           rows={3}
-          onChange={handleTextChange}
+          maxLines={3}
         />
       </div>
 
       <OutputField
         nodeId={id}
-        label="Text"
-        icon={<MessageSquare size={12} />}
-        value={
-          (() => {
-            const text = data?.outputData?.text || localValue;
-            if (!text) return '';
-            
-            // 긴 텍스트를 2줄로 제한 (대략 80자)
-            if (text.length > 80) {
-              return text.substring(0, 80) + '...';
-            }
-            
-            // 줄바꿈이 많으면 첫 2줄만 표시
-            const lines = text.split('\n');
-            if (lines.length > 2) {
-              return lines.slice(0, 2).join('\n') + '...';
-            }
-            
-            return text;
-          })()
-        }
-        handleId="text"
+        label="Text Output"
+        icon={<CheckCircle size={12} />}
+        value={(() => {
+          const text = data.outputData?.textOutput || '';
+          const lines = text.split('\n');
+          if (lines.length > 3) {
+            return lines.slice(0, 3).join('\n') + '\n...';
+          }
+          return text;
+        })()}
+        handleId="textOutput"
       />
+
     </BaseNode>
   );
 }
 
-// 사이드바 자동 발견을 위한 설정 정보 - Core 카테고리로 변경
+// 사이드바 자동 발견을 위한 설정 정보
 export const config: NodeConfig = {
   type: 'textInputNode',
   label: 'Text Input',
   color: '#FFC107',
-  category: 'Core', // Data → Core로 변경
+  category: 'Text',
   settings: [
     { key: 'text', type: 'textarea', label: 'Text', default: '' }
   ]

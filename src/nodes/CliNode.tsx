@@ -1,112 +1,122 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { Terminal, CheckCircle } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
-import { Terminal } from 'lucide-react';
 import BaseNode, { InputField, OutputField } from './Basenode';
 
-import type { 
-  CliNodeProps, 
-  CliNodeData, 
+import type {
+  CliNodeProps,
+  CliNodeData,
   NodeConfig,
   ExecutionMode
 } from '../types';
 
 import { useWorkflow, useHandleConnection } from '../WorkflowContext';
 
-function CliNode({ id, data, selected }: CliNodeProps) {
-  const { updateNodeData, executeNextNodes } = useWorkflow();
-  
-  const [localCommand, setLocalCommand] = useState(data?.command || '');
-  const [status, setStatus] = useState<'waiting' | 'running' | 'completed' | 'failed'>('waiting');
-  const [output, setOutput] = useState<string>('');
+// 백엔드 파라미터 타입 정의
+interface CliParams {
+  command: string;
+}
 
-  // 핸들 연결 상태 확인
+// 백엔드 결과 타입 정의
+interface BackendResult {
+  message?: string;
+  [key: string]: any;
+}
+
+function CliNode({ id, data, selected }: CliNodeProps) {
+  const { executeNextNodes, updateNodeData } = useWorkflow();
+
+  const [status, setStatus] = useState<'waiting' | 'running' | 'completed' | 'failed'>('waiting');
+  const [result, setResult] = useState<string>('');
+
+  const [localCommand, setLocalCommand] = useState('');
+
   const isCommandConnected = useHandleConnection(id, 'command');
 
-  // 현재 사용할 명령어 결정 (연결된 경우 data에서, 아니면 로컬에서)
-  const currentCommand = isCommandConnected ? (data?.command || '') : localCommand;
-
-  // data prop 동기화
   useEffect(() => {
     setLocalCommand(data?.command || '');
   }, [data?.command]);
 
-  // 아웃풋 텍스트를 3줄로 제한하는 함수
-  const truncateOutput = (text: string) => {
-    if (!text) return 'No output yet';
-    const lines = text.split('\n');
-    if (lines.length <= 3) return text;
-    return lines.slice(0, 3).join('\n') + '...';
-  };
-
-  // 명령어 입력 처리
-  const handleCommandChange = (newCommand: string) => {
-    setLocalCommand(newCommand);
-  };
-  
-  // 입력창 포커스 해제시 데이터 업데이트
-  const handleBlur = () => {
-    if (data?.command !== localCommand) {
-      updateNodeData(id, {
-        command: localCommand,
-        outputData: {
-          command: localCommand
-        }
-      });
+  const handleBlur = (key: keyof CliNodeData, value: string) => {
+    if (key === 'command' && !isCommandConnected && data.command !== value) {
+      updateNodeData(id, { command: value });
     }
   };
 
-  // executeNode 함수
+  // ✅ useCallback으로 executeNode 함수 메모이제이션 (실행 모드 지원)
   const executeNode = useCallback(async (mode: ExecutionMode = 'triggered'): Promise<void> => {
-    try {
-      setStatus('running');
+    // ✅ 실행 전 필수 필드 검증
+    const currentCommand = data?.command?.trim() || '';
+
+    if (!currentCommand) {
+      console.warn('⚠️ CliNode: Missing command, skipping execution');
+      setStatus('failed');
+      setResult('Command is required');
       
-      console.log(`🖥️ CLI Node executing command: ${currentCommand}`);
-      
-      if (!currentCommand.trim()) {
-        // 빈 명령어는 조용히 넘어감 (에러 없음)
-        setOutput('');
-        setStatus('completed');
-        
-        updateNodeData(id, {
-          command: currentCommand,
-          output: '',
-          triggerExecution: undefined,
-          outputData: {
-            command: currentCommand,
-            output: '',
-            cliResult: ''
-          }
-        });
-        
-        if (mode === 'triggered') {
-          executeNextNodes(id);
-        }
-        
-        setTimeout(() => {
-          setStatus('waiting');
-        }, 1000);
-        
-        return;
-      }
-      
-      const result = await invoke('cli_node', { command: currentCommand.trim() });
-      const resultMessage = typeof result === 'string' ? result : 'Command executed';
-      
-      setOutput(resultMessage);
-      setStatus('completed');
-      
-      // 출력 데이터 업데이트
-      updateNodeData(id, {
-        command: currentCommand,
-        output: resultMessage,
-        triggerExecution: undefined, // ✅ 트리거 상태 초기화
+      // ✅ 먼저 에러 출력 설정
+      updateNodeData(id, { 
         outputData: {
-          command: currentCommand,
-          output: resultMessage,
-          cliResult: resultMessage
+          output: 'Error: Command is required',
+          command: '',
+          exitCode: -1
         }
       });
+
+      // 🎯 실패해도 트리거 모드에서는 다음 노드 실행 (에러 처리용)
+      if (mode === 'triggered') {
+        executeNextNodes(id);
+        console.log(`🔗 CliNode: No command provided, triggering next nodes for error handling`);
+      }
+
+      // ✅ 마지막에 트리거 상태 초기화 (다음 노드 실행 후)
+      updateNodeData(id, { 
+        triggerExecution: undefined
+      });
       
+      setTimeout(() => { 
+        setStatus('waiting'); 
+        setResult(''); 
+      }, 2000);
+      return;
+    }
+
+    setStatus('running');
+    try {
+      const params: CliParams = {
+        command: currentCommand
+      };
+
+      console.log(`🖥️ CliNode ${id}: Executing command... (mode: ${mode})`);
+
+      const resultData: BackendResult = await invoke('cli_node', params);
+      const resultMessage = typeof resultData === 'string' ? resultData : resultData.message || 'Command executed successfully';
+
+      // JSON 파싱 시도
+      let parsedResult: any = {};
+      try {
+        parsedResult = typeof resultData === 'string' ? JSON.parse(resultData) : resultData;
+      } catch (parseError) {
+        // 단순 문자열 결과인 경우
+        parsedResult = { 
+          output: resultData,
+          command: currentCommand 
+        };
+      }
+
+      const commandOutput = parsedResult.output || resultData || '';
+
+      setStatus('completed');
+      setResult('Command executed successfully');
+
+      // ✅ 먼저 출력 데이터 설정
+      updateNodeData(id, {
+        outputData: {
+          output: commandOutput,
+          command: currentCommand,
+          exitCode: parsedResult.exitCode || 0
+        }
+      });
+
       // 🎯 실행 모드에 따른 연쇄 실행 결정
       if (mode === 'triggered') {
         executeNextNodes(id);
@@ -114,50 +124,59 @@ function CliNode({ id, data, selected }: CliNodeProps) {
       } else {
         console.log(`🔧 CliNode: Manual execution completed, no chain reaction`);
       }
-      
-      // Auto-reset to waiting after 2 seconds
-      setTimeout(() => {
-        setStatus('waiting');
-      }, 2000);
-      
-    } catch (error: unknown) {
-      console.error('❌ CLI node failed:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      const errorOutput = `Error: ${errorMessage}`;
-      setOutput(errorOutput);
-      setStatus('failed');
-      
-      // 에러도 outputData에 전달
+
+      // ✅ 마지막에 트리거 상태 초기화 (다음 노드 실행 후)
       updateNodeData(id, {
-        command: currentCommand,
-        output: errorOutput,
-        triggerExecution: undefined,
+        triggerExecution: undefined
+      });
+
+      setTimeout(() => { setStatus('waiting'); setResult(''); }, 2000);
+
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      console.error('❌ CLI command failed:', errorMessage, error);
+      setStatus('failed');
+      setResult(errorMessage);
+
+      // ✅ 먼저 출력 데이터에 에러 설정
+      updateNodeData(id, {
         outputData: {
+          output: `Error: ${errorMessage}`,
           command: currentCommand,
-          output: errorOutput,
-          cliResult: errorOutput
+          exitCode: -1
         }
       });
-      
-      // 에러 발생 시에도 다음 노드 실행 (AI가 에러를 인식하고 대응할 수 있도록)
+
+      // 🎯 실패해도 트리거 모드에서는 다음 노드 실행 (에러 처리용)
       if (mode === 'triggered') {
         executeNextNodes(id);
-        console.log(`🔗 CliNode: Error occurred, but triggering next nodes for error handling`);
+        console.log(`🔗 CliNode: Error occurred, triggering next nodes for error handling`);
       }
-      
-      setTimeout(() => {
-        setStatus('waiting');
-      }, 2000);
-    }
-  }, [id, currentCommand, updateNodeData, executeNextNodes]);
 
-  // 외부 트리거 실행 감지
+      // ✅ 마지막에 트리거 상태 초기화 (다음 노드 실행 후)
+      updateNodeData(id, {
+        triggerExecution: undefined
+      });
+
+      setTimeout(() => { setStatus('waiting'); setResult(''); }, 2000);
+    }
+  }, [id, data?.command, executeNextNodes, updateNodeData]);
+
+  // ✅ 트리거 실행 감지 (executeNode가 useCallback으로 안정화됨)
   useEffect(() => {
     if (data.triggerExecution && typeof data.triggerExecution === 'number') {
       console.log(`🖥️ CLI node ${id} auto-execution triggered!`);
-      executeNode('triggered');
+      executeNode('triggered'); // 자동 트리거 모드로 실행
     }
   }, [data.triggerExecution, executeNode]);
+
+  // 연결 상태 변경시 값 초기화
+  useEffect(() => {
+    if (isCommandConnected) {
+      setLocalCommand('');
+      updateNodeData(id, { command: '' });
+    }
+  }, [isCommandConnected, id, updateNodeData]);
 
   return (
     <BaseNode<CliNodeData>
@@ -166,42 +185,52 @@ function CliNode({ id, data, selected }: CliNodeProps) {
       icon={<Terminal size={16} stroke="white" />}
       status={status}
       selected={selected}
-      onExecute={executeNode}
-      hasInput={true}
-      hasOutput={true}
+      onExecute={executeNode} // 실행 모드 매개변수 지원
       data={data}
+      result={result}
+      description="Executes command line interface commands"
     >
-      <div onBlur={handleBlur}>
+      <div onBlur={() => handleBlur('command', localCommand)}>
         <InputField
           nodeId={id}
-          handleId="command"
           label="Command"
-          value={isCommandConnected ? currentCommand : localCommand}
+          icon={<Terminal size={12} />}
+          value={localCommand}
           placeholder="Enter CLI command (e.g., dir, ls, echo hello)"
-          type="text"
-          onChange={handleCommandChange}
+          onChange={setLocalCommand}
+          handleId="command"
           disabled={isCommandConnected}
         />
       </div>
 
       <OutputField
         nodeId={id}
-        handleId="cliResult"
-        label="CLI Result"
-        icon={<Terminal size={12} />}
-        value={truncateOutput(output)}
+        label="Command Output"
+        icon={<CheckCircle size={12} />}
+        value={(() => {
+          const text = data.outputData?.output || '';
+          const lines = text.split('\n');
+          if (lines.length > 3) {
+            return lines.slice(0, 3).join('\n') + '\n...';
+          }
+          return text;
+        })()}
+        handleId="output"
       />
+
     </BaseNode>
   );
 }
 
-// Auto-discovery configuration
+// 사이드바 자동 발견을 위한 설정 정보
 export const config: NodeConfig = {
   type: 'cliNode',
-  label: 'CLI',
+  label: 'CLI Command',
   color: '#2d3748',
   category: 'System',
-  settings: []
+  settings: [
+    { key: 'command', type: 'text', label: 'Command', default: '' }
+  ]
 };
 
 export default CliNode;

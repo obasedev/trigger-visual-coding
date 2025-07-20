@@ -235,15 +235,15 @@ async fn stop_cloudflare_tunnel(node_id: String) -> Result<(), String> {
     }
 }
 
-// 📱 모바일 친화적 채팅 HTML 생성 함수 (기존과 동일)
-fn create_mobile_chat_html(chat_title: String, server_port: u16) -> String {
+// 📱 모던한 채팅 HTML 생성 함수 (example.rs 스타일 적용)
+fn create_mobile_chat_html() -> String {
     format!(
         r#"<!DOCTYPE html>
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>{}</title>
+    <title>Chat Server</title>
     <style>
         * {{
             margin: 0;
@@ -252,160 +252,237 @@ fn create_mobile_chat_html(chat_title: String, server_port: u16) -> String {
         }}
         
         body {{
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #0f0f0f;
             height: 100vh;
             display: flex;
             flex-direction: column;
             overflow: hidden;
+            color: #ffffff;
         }}
         
-        .chat-header {{
-            background: rgba(255, 255, 255, 0.95);
-            padding: 15px 20px;
-            text-align: center;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        .header {{
+            background: #1a1a1a;
+            border-bottom: 1px solid #2a2a2a;
+            padding: 16px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
             backdrop-filter: blur(10px);
         }}
         
-        .chat-header h1 {{
-            color: #333;
-            font-size: 1.2em;
+        .header h1 {{
+            color: #ffffff;
+            font-size: 18px;
             font-weight: 600;
+        }}
+        
+        .status {{
+            color: #10b981;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(16, 185, 129, 0.1);
+            padding: 4px 8px;
+            border-radius: 12px;
+        }}
+        
+        .status::before {{
+            content: '●';
+            color: #10b981;
+            font-size: 8px;
         }}
         
         .chat-container {{
             flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            padding-bottom: 120px;
             display: flex;
             flex-direction: column;
-            padding: 20px;
-            max-width: 600px;
-            margin: 0 auto;
-            width: 100%;
+            gap: 12px;
+            transition: padding-bottom 0.3s ease;
+            scroll-behavior: smooth;
         }}
         
-        .message-display {{
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 15px;
-            padding: 20px;
-            margin-bottom: 20px;
-            min-height: 150px;
-            backdrop-filter: blur(10px);
-            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
+        .message {{
+            max-width: 80%;
+            padding: 12px 16px;
+            border-radius: 16px;
+            font-size: 14px;
+            line-height: 1.4;
+            word-wrap: break-word;
+            animation: messageSlide 0.2s ease-out;
         }}
         
-        .message-section {{
+        @keyframes messageSlide {{
+            from {{
+                opacity: 0;
+                transform: translateY(10px);
+            }}
+            to {{
+                opacity: 1;
+                transform: translateY(0);
+            }}
+        }}
+        
+        .message.user {{
+            background: #2563eb;
+            color: white;
+            align-self: flex-end;
+            border-bottom-right-radius: 6px;
+            box-shadow: 0 2px 6px rgba(37, 99, 235, 0.25);
+        }}
+        
+        .message.computer {{
+            background: #1a1a1a;
+            color: #e8e8e8;
+            align-self: flex-start;
+            border-bottom-left-radius: 6px;
+            border: 1px solid #333;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        }}
+        
+        .message.assistant {{
             background: #f8f9fa;
-            border-radius: 10px;
-            padding: 15px;
-            border-left: 4px solid #ddd;
-        }}
-        
-        .message-section.sent {{
-            border-left-color: #667eea;
-        }}
-        
-        .message-section.received {{
-            border-left-color: #4caf50;
-        }}
-        
-        .message-label {{
-            font-size: 0.9em;
-            font-weight: 600;
-            margin-bottom: 8px;
-            opacity: 0.7;
-        }}
-        
-        .message-content {{
-            font-size: 1.1em;
-            color: #333;
-            min-height: 20px;
+            color: #1a1a1a;
+            align-self: flex-start;
+            border-bottom-left-radius: 6px;
+            border: 1px solid #e9ecef;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+            padding: 12px 16px;
+            border-radius: 16px;
+            max-width: 80%;
+            font-size: 14px;
+            line-height: 1.4;
             word-wrap: break-word;
         }}
         
-        .message-empty {{
-            color: #999;
-            font-style: italic;
+        .message.system {{
+            background: rgba(99, 102, 241, 0.1);
+            color: #6366f1;
+            align-self: center;
+            font-size: 13px;
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            border-radius: 12px;
+        }}
+        
+        .bottom-container {{
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #1a1a1a;
+            border-top: 1px solid #2a2a2a;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
+            z-index: 1000;
         }}
         
         .input-container {{
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 25px;
-            padding: 15px;
+            padding: 12px 16px;
             display: flex;
-            gap: 10px;
-            backdrop-filter: blur(10px);
-            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            align-items: flex-end;
+            gap: 12px;
+        }}
+        
+        .input-wrapper {{
+            flex: 1;
+            position: relative;
         }}
         
         .message-input {{
-            flex: 1;
-            border: none;
-            outline: none;
-            padding: 12px 18px;
-            border-radius: 20px;
-            background: #f8f9fa;
+            width: 100%;
+            padding: 14px 20px;
+            border: 1px solid #404040;
+            border-radius: 24px;
             font-size: 16px;
-            color: #333;
+            outline: none;
+            transition: all 0.2s ease;
+            background: #262626;
+            color: #ffffff;
+            font-family: inherit;
+            resize: none;
+            min-height: 48px;
+        }}
+        
+        .message-input:focus {{
+            border-color: #6366f1;
+            background: #2a2a2a;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }}
+        
+        .message-input::placeholder {{
+            color: #7a7a7a;
         }}
         
         .send-button {{
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
             color: white;
             border: none;
-            padding: 12px 20px;
-            border-radius: 20px;
-            font-size: 16px;
-            font-weight: 600;
+            border-radius: 50%;
+            width: 48px;
+            height: 48px;
             cursor: pointer;
-            transition: all 0.3s ease;
-            min-width: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            font-size: 18px;
+            box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
         }}
         
         .send-button:hover {{
-            transform: translateY(-2px);
-            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
-        }}
-        
-        .send-button:active {{
-            transform: translateY(0);
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
         }}
         
         .send-button:disabled {{
-            opacity: 0.6;
+            background: #404040;
             cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
         }}
         
-        .status {{
-            text-align: center;
-            color: rgba(255, 255, 255, 0.8);
-            font-size: 0.9em;
-            margin-top: 10px;
+        .send-button:active {{
+            transform: scale(0.98);
         }}
         
         .websocket-status {{
-            padding: 5px 10px;
-            border-radius: 15px;
-            font-size: 0.8em;
-            margin-top: 5px;
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 6px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+            z-index: 1001;
         }}
         
         .websocket-connected {{
-            background: rgba(76, 175, 80, 0.2);
-            color: #4caf50;
+            background: rgba(16, 185, 129, 0.15);
+            color: #10b981;
+            border: 1px solid rgba(16, 185, 129, 0.3);
         }}
         
         .websocket-disconnected {{
-            background: rgba(244, 67, 54, 0.2);
-            color: #f44336;
+            background: rgba(239, 68, 68, 0.15);
+            color: #ef4444;
+            border: 1px solid rgba(239, 68, 68, 0.3);
         }}
         
         @media (max-width: 480px) {{
+            .header {{
+                padding: 12px 16px;
+            }}
+            
             .chat-container {{
-                padding: 15px;
+                padding: 16px;
+            }}
+            
+            .input-container {{
+                padding: 8px 12px;
             }}
             
             .message-input {{
@@ -415,57 +492,52 @@ fn create_mobile_chat_html(chat_title: String, server_port: u16) -> String {
     </style>
 </head>
 <body>
-    <div class="chat-header">
-        <h1>{}</h1>
+    <div class="header">
+        <h1>Chat Server</h1>
     </div>
     
-    <div class="chat-container">
-        <div class="message-display">
-            <div class="message-section sent">
-                <div class="message-label">📱 내가 보낸 메시지:</div>
-                <div class="message-content" id="sentMessage">
-                    <span class="message-empty">아직 메시지를 보내지 않았습니다.</span>
-                </div>
-            </div>
-            
-            <div class="message-section received">
-                <div class="message-label">💻 컴퓨터에서 보낸 메시지:</div>
-                <div class="message-content" id="receivedMessage">
-                    <span class="message-empty">컴퓨터에서 메시지를 기다리는 중...</span>
-                </div>
-            </div>
+    <div class="chat-container" id="chatContainer">
+        <div class="message system">
+            💬 채팅이 시작되었습니다. 메시지를 입력해보세요!
         </div>
-        
+    </div>
+    
+    <div class="bottom-container">
         <div class="input-container">
-            <input 
-                type="text" 
-                class="message-input" 
-                id="messageInput" 
-                placeholder="메시지를 입력하세요..."
-                maxlength="500"
-            >
-            <button class="send-button" id="sendButton">전송</button>
-        </div>
-        
-        <div class="status" id="status">
-            연결됨 • 포트 {}
-            <div class="websocket-status websocket-disconnected" id="wsStatus">
-                WebSocket 연결 중...
+            <div class="input-wrapper">
+                <input 
+                    type="text" 
+                    class="message-input" 
+                    id="messageInput" 
+                    placeholder="메시지를 입력하세요..."
+                    maxlength="500"
+                >
             </div>
+            <button class="send-button" id="sendButton">➤</button>
         </div>
+    </div>
+    
+    <div class="websocket-status websocket-disconnected" id="wsStatus">
+        연결 중...
     </div>
 
     <script>
         const messageInput = document.getElementById('messageInput');
         const sendButton = document.getElementById('sendButton');
-        const sentMessageDiv = document.getElementById('sentMessage');
-        const receivedMessageDiv = document.getElementById('receivedMessage');
-        const status = document.getElementById('status');
+        const chatContainer = document.getElementById('chatContainer');
         const wsStatus = document.getElementById('wsStatus');
         
         let websocket = null;
         let reconnectAttempts = 0;
         const maxReconnectAttempts = 5;
+        
+        function addMessage(content, type = 'user') {{
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${{type}}`;
+            messageDiv.textContent = content;
+            chatContainer.appendChild(messageDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }}
         
         function connectWebSocket() {{
             const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -478,43 +550,55 @@ fn create_mobile_chat_html(chat_title: String, server_port: u16) -> String {
                 
                 websocket.onopen = function(event) {{
                     console.log('✅ WebSocket 연결됨');
-                    wsStatus.textContent = 'WebSocket 연결됨 ✅';
+                    wsStatus.textContent = '연결됨';
                     wsStatus.className = 'websocket-status websocket-connected';
                     reconnectAttempts = 0;
                 }};
                 
                 websocket.onmessage = function(event) {{
                     console.log('💻 컴퓨터에서 메시지 받음:', event.data);
-                    receivedMessageDiv.innerHTML = event.data;
-                    receivedMessageDiv.scrollIntoView({{ behavior: 'smooth' }});
+                    
+                    try {{
+                        // JSON 파싱 시도
+                        const messageData = JSON.parse(event.data);
+                        if (messageData.message && messageData.type) {{
+                            addMessage(messageData.message, messageData.type);
+                        }} else {{
+                            // JSON이지만 올바른 형태가 아닌 경우 기본값으로 처리
+                            addMessage(event.data, 'user');
+                        }}
+                    }} catch (e) {{
+                        // JSON이 아닌 일반 텍스트인 경우 기본값으로 처리
+                        addMessage(event.data, 'user');
+                    }}
                 }};
                 
                 websocket.onclose = function(event) {{
                     console.log('❌ WebSocket 연결 해제됨 (코드:', event.code, ')');
-                    wsStatus.textContent = 'WebSocket 연결 해제됨 ❌';
+                    wsStatus.textContent = '연결 해제됨';
                     wsStatus.className = 'websocket-status websocket-disconnected';
                     
                     if (reconnectAttempts < maxReconnectAttempts) {{
                         reconnectAttempts++;
                         const delay = Math.min(1000 * Math.pow(2, reconnectAttempts - 1), 30000);
                         console.log(`🔄 ${{delay/1000}}초 후 재연결 시도 (${{reconnectAttempts}}/${{maxReconnectAttempts}})`);
-                        wsStatus.textContent = `${{delay/1000}}초 후 재연결... (${{reconnectAttempts}}/${{maxReconnectAttempts}})`;
+                        wsStatus.textContent = `재연결 중... (${{reconnectAttempts}}/${{maxReconnectAttempts}})`;
                         setTimeout(connectWebSocket, delay);
                     }} else {{
                         console.log('❌ 최대 재연결 시도 횟수 초과');
-                        wsStatus.textContent = '연결 실패 ❌ (새로고침 해주세요)';
+                        wsStatus.textContent = '연결 실패 (새로고침 필요)';
                     }}
                 }};
                 
                 websocket.onerror = function(error) {{
                     console.error('❌ WebSocket 에러:', error);
-                    wsStatus.textContent = 'WebSocket 에러 ⚠️';
+                    wsStatus.textContent = '연결 오류';
                     wsStatus.className = 'websocket-status websocket-disconnected';
                 }};
                 
             }} catch (error) {{
                 console.error('❌ WebSocket 생성 실패:', error);
-                wsStatus.textContent = 'WebSocket 생성 실패 ❌';
+                wsStatus.textContent = '연결 실패';
                 wsStatus.className = 'websocket-status websocket-disconnected';
             }}
         }}
@@ -524,7 +608,12 @@ fn create_mobile_chat_html(chat_title: String, server_port: u16) -> String {
             if (!message) return;
             
             sendButton.disabled = true;
-            sendButton.textContent = '전송중...';
+            const originalText = sendButton.innerHTML;
+            sendButton.innerHTML = '...';
+            
+            // 즉시 사용자 메시지 추가
+            addMessage(message, 'user');
+            messageInput.value = '';
             
             try {{
                 const response = await fetch('/send-message', {{
@@ -538,45 +627,62 @@ fn create_mobile_chat_html(chat_title: String, server_port: u16) -> String {
                     }})
                 }});
                 
-                if (response.ok) {{
-                    sentMessageDiv.innerHTML = message;
-                    messageInput.value = '';
-                    console.log('✅ 메시지 전송 성공:', message);
-                }} else {{
+                if (!response.ok) {{
                     throw new Error('서버 응답 오류: ' + response.status);
                 }}
+                
+                console.log('✅ 메시지 전송 성공:', message);
             }} catch (error) {{
                 console.error('❌ 메시지 전송 실패:', error);
-                alert('메시지 전송에 실패했습니다: ' + error.message);
+                addMessage('메시지 전송에 실패했습니다: ' + error.message, 'system');
             }}
             
             sendButton.disabled = false;
-            sendButton.textContent = '전송';
+            sendButton.innerHTML = originalText;
         }}
         
         sendButton.addEventListener('click', sendMessage);
         
         messageInput.addEventListener('keypress', function(e) {{
-            if (e.key === 'Enter') {{
+            if (e.key === 'Enter' && !e.shiftKey) {{
+                e.preventDefault();
                 sendMessage();
             }}
         }});
         
+        // 모바일 키보드 대응
+        let initialViewportHeight = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+        
+        function handleViewportChange() {{
+            if (window.visualViewport) {{
+                const currentHeight = window.visualViewport.height;
+                const heightDifference = initialViewportHeight - currentHeight;
+                
+                if (heightDifference > 150) {{
+                    chatContainer.classList.add('keyboard-active');
+                }} else {{
+                    chatContainer.classList.remove('keyboard-active');
+                }}
+            }}
+        }}
+        
+        if (window.visualViewport) {{
+            window.visualViewport.addEventListener('resize', handleViewportChange);
+        }}
+        
         connectWebSocket();
         messageInput.focus();
         
-        console.log('📱 모바일 채팅 클라이언트 초기화 완료');
+        console.log('📱 모던 채팅 클라이언트 초기화 완료');
     </script>
 </body>
-</html>"#,
-        chat_title, chat_title, server_port
+</html>"#
     )
 }
 
 // 💬 채팅 서버 시작 함수 (🔧 터널 기능 통합)
 async fn start_chat_server(
     port: u16,
-    chat_title: String,
     node_id: String,
     app_handle: AppHandle,
     enable_global: bool, // 🆕 글로벌 터널 옵션
@@ -595,7 +701,7 @@ async fn start_chat_server(
     let websocket_tx_clone = websocket_tx.clone();
 
     // 채팅 HTML 생성
-    let chat_html = create_mobile_chat_html(chat_title.clone(), actual_port);
+    let chat_html = create_mobile_chat_html();
 
     // 메인 페이지 라우트
     let chat_html_clone = chat_html.clone();
@@ -784,7 +890,6 @@ async fn start_chat_server(
 pub async fn chat_web_server_node(
     app_handle: AppHandle,
     port: u16,
-    chat_title: String,
     node_id: Option<String>,
     enable_global: Option<bool>, // 🆕 글로벌 터널 옵션
 ) -> Result<ChatWebServerResult, String> {
@@ -792,15 +897,11 @@ pub async fn chat_web_server_node(
     let enable_global = enable_global.unwrap_or(false);
 
     println!(
-        "💬 ChatWebServerNode: 포트 {}에서 '{}' 채팅 서버 시작 중 (글로벌: {})",
-        port, chat_title, enable_global
+        "💬 ChatWebServerNode: 포트 {}에서 채팅 서버 시작 중 (글로벌: {})",
+        port, enable_global
     );
 
-    if chat_title.trim().is_empty() {
-        return Err("Chat title cannot be empty".to_string());
-    }
-
-    match start_chat_server(port, chat_title, node_id, app_handle, enable_global).await {
+    match start_chat_server(port, node_id, app_handle, enable_global).await {
         Ok(result) => {
             println!(
                 "✅ ChatWebServerNode: 채팅 서버 시작 완료 - {}",
@@ -816,11 +917,49 @@ pub async fn chat_web_server_node(
 }
 
 // 🚀 모바일로 메시지 전송 함수 (기존과 동일)
+// 🆕 웹페이지로 응답 메시지 전송
+#[tauri::command]
+pub async fn send_web_response(node_id: String, response_message: String) -> Result<String, String> {
+    println!("🌐 Sending web response for node {}: {}", node_id, response_message);
+    
+    let registry = get_chat_server_registry();
+    let servers = registry.read().await;
+    
+    let server_handle = servers.values().find(|handle| handle.node_id == node_id);
+    
+    if let Some(handle) = server_handle {
+        // WebSocket으로 응답 전송 (assistant 타입으로)
+        let response_json = serde_json::json!({
+            "message": response_message,
+            "type": "assistant",
+            "timestamp": std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis()
+        });
+        
+        if let Err(e) = handle.websocket_sender.send(response_json.to_string()) {
+            println!("❌ Failed to send web response: {}", e);
+            return Err(format!("Failed to send web response: {}", e));
+        }
+        
+        println!("✅ Web response sent successfully to webpage");
+        Ok("Web response sent successfully".to_string())
+    } else {
+        Err(format!("Chat server not found for node: {}", node_id))
+    }
+}
+
 #[tauri::command]
 pub async fn send_to_mobile(node_id: String, message: String) -> Result<String, String> {
+    send_to_mobile_with_type(node_id, message, "user".to_string()).await
+}
+
+#[tauri::command]
+pub async fn send_to_mobile_with_type(node_id: String, message: String, message_type: String) -> Result<String, String> {
     println!(
-        "📱 SendToMobile: 노드 {}로 메시지 전송 중 - '{}'",
-        node_id, message
+        "📱 SendToMobile: 노드 {}로 메시지 전송 중 (타입: {}) - '{}'",
+        node_id, message_type, message
     );
 
     let registry = get_chat_server_registry();
@@ -829,7 +968,13 @@ pub async fn send_to_mobile(node_id: String, message: String) -> Result<String, 
     let server_handle = servers.values().find(|handle| handle.node_id == node_id);
 
     if let Some(handle) = server_handle {
-        match handle.websocket_sender.send(message.clone()) {
+        // JSON 형태로 메시지와 타입을 함께 전송
+        let message_json = serde_json::json!({
+            "message": message,
+            "type": message_type
+        }).to_string();
+        
+        match handle.websocket_sender.send(message_json) {
             Ok(receiver_count) => {
                 println!(
                     "✅ {}개의 WebSocket 클라이언트에게 메시지 전송됨",

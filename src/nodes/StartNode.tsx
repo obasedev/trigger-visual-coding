@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { Play, Clock } from 'lucide-react';
-import BaseNode from './Basenode';
+import { Play, MessageSquare } from 'lucide-react';
+import BaseNode, { InputField } from './Basenode';
 
 // 🆕 중앙 타입 정의 import
 import type { 
@@ -13,7 +13,7 @@ import type {
 } from '../types';
 
 // 🆕 Context API 추가 (타입 안전)
-import { useWorkflow } from '../WorkflowContext';
+import { useWorkflow, useHandleConnection } from '../WorkflowContext';
 
 /**
  * StartNode.tsx (실행 모드 지원) - 항상 연쇄 실행
@@ -31,10 +31,13 @@ function StartNode({ id, data, selected }: StartNodeProps) {
   }
 
   // 🆕 Context에서 필요한 함수들 가져오기 (타입 안전)
-  const { executeNextNodes } = useWorkflow();
+  const { executeNextNodes, updateNodeData } = useWorkflow();
   
   const [status, setStatus] = useState<'waiting' | 'running' | 'completed' | 'failed'>('waiting');
-  const [lastExecuted, setLastExecuted] = useState<string>('');
+  const [localInputText, setLocalInputText] = useState('');
+  const [previousInputText, setPreviousInputText] = useState(''); // 이전 값 추적
+  
+  const isInputConnected = useHandleConnection(id, 'inputText');
 
   // 🔄 executeNode 함수 (실행 모드 지원)
   const executeNode = useCallback(async (mode: ExecutionMode = 'triggered'): Promise<void> => {
@@ -50,9 +53,16 @@ function StartNode({ id, data, selected }: StartNodeProps) {
       const resultMessage = typeof result === 'string' ? result : result.message || 'Success';
       console.log('✅ Start node completed:', resultMessage);
       
-      const now = new Date().toLocaleTimeString();
-      setLastExecuted(now);
       setStatus('completed');
+      
+      // 출력 데이터 업데이트
+      updateNodeData(id, {
+        triggerExecution: undefined,
+        outputData: {
+          ...data.outputData,
+          inputText: data.inputText || ''
+        }
+      });
       
       // 🚀 StartNode는 항상 다음 노드들 트리거 (워크플로우 시작점 역할)
       if (typeof executeNextNodes === 'function') {
@@ -76,8 +86,40 @@ function StartNode({ id, data, selected }: StartNodeProps) {
         setStatus('waiting');
       }, 2000);
     }
-  }, [id, executeNextNodes]);
+  }, [id, executeNextNodes, updateNodeData, data]);
 
+  // 초기값 설정
+  useEffect(() => {
+    setLocalInputText(data?.inputText || '');
+  }, [data?.inputText]);
+  
+  // 입력값 변경 시 블러 처리
+  const handleBlur = useCallback((value: string) => {
+    if (!isInputConnected && data.inputText !== value) {
+      updateNodeData(id, { inputText: value });
+      // 새로운 값이 들어오면 자동 실행
+      if (value.trim()) {
+        console.log(`🚀 StartNode: New input detected, auto-executing: "${value}"`);
+        executeNode('triggered');
+      }
+    }
+  }, [id, data.inputText, isInputConnected, updateNodeData, executeNode]);
+  
+  // 연결된 입력값 변경 감지 (외부에서 들어온 값) - 실제 값 변경 시만 실행
+  useEffect(() => {
+    const currentInputText = data.inputText || '';
+    
+    if (isInputConnected && 
+        currentInputText.trim() && 
+        currentInputText !== previousInputText && 
+        status === 'waiting') {
+      
+      console.log(`🚀 StartNode: Connected input changed from "${previousInputText}" to "${currentInputText}"`);
+      setPreviousInputText(currentInputText); // 이전 값 업데이트
+      executeNode('triggered');
+    }
+  }, [data.inputText, isInputConnected, executeNode, status, previousInputText]);
+  
   // Detect external trigger execution (타입 안전)
   useEffect(() => {
     if (data.triggerExecution && typeof data.triggerExecution === 'number') {
@@ -96,21 +138,23 @@ function StartNode({ id, data, selected }: StartNodeProps) {
       onExecute={executeNode} // 실행 모드 매개변수 지원
       hasInput={false}  // Start node has no input trigger
       hasOutput={true}  // Start node has output trigger
-      description="Manually starts the workflow. When the button is pressed, connected nodes will execute sequentially."
+      description="Starts the workflow when input text is provided. Executes automatically when new input is received."
       data={data}
-      infoRows={[
-        { 
-          label: "Node ID", 
-          value: id, 
-          monospace: true 
-        },
-        { 
-          label: "Last Executed", 
-          value: lastExecuted || 'Never',
-          icon: <Clock size={12} />
-        }
-      ]}
-    />
+    >
+      {/* Input Text */}
+      <div onBlur={() => handleBlur(localInputText)}>
+        <InputField
+          nodeId={id}
+          label="Input Text"
+          icon={<MessageSquare size={12} />}
+          value={localInputText}
+          placeholder="Enter text to start workflow..."
+          onChange={setLocalInputText}
+          handleId="inputText"
+          disabled={isInputConnected}
+        />
+      </div>
+    </BaseNode>
   );
 }
 

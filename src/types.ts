@@ -89,7 +89,9 @@ export interface BackendResult {
 // 구체적인 노드별 데이터 타입
 // =====================================
 
-export interface StartNodeData extends BaseNodeData {}
+export interface StartNodeData extends BaseNodeData {
+  inputText: string;
+}
 
 export interface FileCreatorNodeData extends BaseNodeData {
   filePath: string;
@@ -101,6 +103,12 @@ export interface TextFileEditorNodeData extends BaseNodeData {
   filePath: string;
   newFileName: string;
   newFileContent: string;
+}
+
+export interface TextMergerNodeData extends BaseNodeData {
+  text1: string;
+  text2: string;
+  separator: string;
 }
 
 export interface TextInputNodeData extends BaseNodeData {
@@ -219,6 +227,7 @@ export interface InputFieldProps {
   handleId?: string;
   onChange?: (value: string) => void;
   disabled?: boolean;
+  maxLines?: number; // 🆕 최대 줄 수 제한 (기본값: 무제한)
 }
 
 // =====================================
@@ -258,6 +267,12 @@ export interface StartNodeProps {
 export interface FileCreatorNodeProps {
   id: string;
   data: FileCreatorNodeData;
+  selected: boolean;
+}
+
+export interface TextMergerNodeProps {
+  id: string;
+  data: TextMergerNodeData;
   selected: boolean;
 }
 

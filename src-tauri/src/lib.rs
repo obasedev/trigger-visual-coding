@@ -17,8 +17,11 @@ pub fn run() {
             start_node,
             file_creator_node,
             text_file_editor_node,
+            text_merger_node,
             chat_web_server_node,
             send_to_mobile,
+            send_to_mobile_with_type,
+            send_web_response, // 🆕 웹페이지 응답 함수 추가
             stop_chat_server_node,
             get_chat_server_status,
             stop_chat_tunnel,     // 🆕 추가
@@ -34,6 +37,7 @@ pub fn run() {
             cli_ai_node, // 🆕 CLI AI 노드 추가
             cli_node, // 🆕 CLI 노드 추가
             update_cli_result, // 🆕 CLI 결과 업데이트 함수
+            clear_conversation_history, // 🆕 대화 기록 초기화 함수
             scan_plugins_folder,
             read_plugin_file,
             get_plugins_folder_info,

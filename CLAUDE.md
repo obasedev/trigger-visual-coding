@@ -207,31 +207,191 @@ src-tauri/plugins/             # External plugin directory
 
 ## Adding New Nodes
 
-**CRITICAL: Follow this exact 4-step process, one file at a time:**
+# 🚨 노드 개발 필수 체크리스트
 
-### Step 1: Frontend Node Component
-Create `src/nodes/MyNewNode.tsx` with:
-- Standard 4-layer structure (header, trigger, inputs, outputs)
-- **Required config export** for auto-discovery
-- Naming: `CamelCaseNode.tsx`
+## 📋 4단계 개발 순서 (절대 변경 금지)
+1. **Frontend (.tsx)** → 2. **Backend (.rs)** → 3. **mod.rs** → 4. **lib.rs**
+- 각 단계별로 하나씩 순차 진행
+- 여러 파일 동시 생성 절대 금지
 
-### Step 2: Backend Function  
-Create `src-tauri/src/nodes/my_new_node.rs` with:
-- `#[tauri::command]` decorator
-- Function name: `my_new_node()`
-- Naming: `snake_case_node.rs`
+## 🎯 핵심 기능 요구사항
 
-### Step 3: Register in mod.rs
-Add to `src-tauri/src/nodes/mod.rs`:
-```rust
-pub mod my_new_node;
-pub use my_new_node::my_new_node;
+### 1. **연결 상태 처리**
+```typescript
+const isInputConnected = useHandleConnection(id, 'inputName');
+
+// 연결 시 기존 값 삭제
+useEffect(() => {
+  if (isInputConnected) {
+    setLocalValue('');
+    updateNodeData(id, { inputName: '' });
+  }
+}, [isInputConnected, id, updateNodeData]);
 ```
 
-### Step 4: Register in lib.rs
-Add to `src-tauri/src/lib.rs` invoke_handler:
+### 2. **실행 모드 구분** 
+```typescript
+// 성공 시
+setStatus('completed');
+if (mode === 'triggered') {
+  executeNextNodes(id, { outputData });
+}
+setTimeout(() => setStatus('waiting'), 2000);
+
+// 실패 시  
+setStatus('failed');
+updateNodeData(id, { triggerExecution: undefined });
+setTimeout(() => setStatus('waiting'), 2000);
+```
+
+### 3. **입력 필드 비활성화**
+```jsx
+<InputField
+  disabled={isConnected}
+  handleId="fieldName"
+  // ...기타 props
+/>
+```
+
+### 4. **핸들 ID 설정**
+- 모든 InputField와 OutputField에 `handleId` 필수
+- 핸들 이름은 필드명과 동일하게
+
+### 5. **데이터 업데이트**
+```typescript
+const handleBlur = (key: keyof NodeData, value: string) => {
+  if (key === 'fieldName' && !isConnected && data.fieldName !== value) {
+    updateNodeData(id, { fieldName: value });
+  }
+};
+```
+
+### 6. **출력 텍스트 3줄 제한**
+```typescript
+// 긴 텍스트는 3줄로 제한하고 ... 표시
+<OutputField
+  value={(() => {
+    const text = data.outputData?.field || '';
+    const lines = text.split('\n');
+    if (lines.length > 3) {
+      return lines.slice(0, 3).join('\n') + '\n...';
+    }
+    return text;
+  })()}
+  // ...기타 props
+/>
+```
+
+## 🏗️ 파일 구조 요구사항
+
+### Frontend (NodeName.tsx)
+```typescript
+// 필수 imports
+import { useWorkflow, useHandleConnection } from '../WorkflowContext';
+import BaseNode, { InputField, OutputField } from './Basenode';
+
+// 필수 config export
+export const config: NodeConfig = {
+  type: 'nodeType',
+  label: 'Node Name',
+  color: '#COLOR',
+  category: 'Category', // 반드시 설정
+  settings: [...]
+};
+```
+
+### Backend (node_name.rs)
 ```rust
-my_new_node, // Add this line
+#[tauri::command]
+pub fn node_name(params...) -> Result<String, String> {
+  // JSON 결과 반환
+  let result = json!({
+    "output_field": value
+  });
+  Ok(result.to_string())
+}
+```
+
+### 등록 (mod.rs)
+```rust
+pub mod node_name;
+pub use node_name::node_name;
+```
+
+### 등록 (lib.rs)
+```rust
+invoke_handler![
+  node_name, // 추가
+]
+```
+
+## ⚠️ 절대 금지사항
+
+1. **딜레이 임의 추가** - executeNextNodes에 딜레이 넣지 말 것
+2. **Hook 규칙 위반** - 조건부 Hook 사용 금지
+3. **타입 정의 누락** - types.ts에 인터페이스 추가 필수
+4. **카테고리 누락** - config에 category 반드시 설정
+5. **핸들 ID 누락** - 모든 입력/출력에 handleId 필수
+6. **연결 상태 무시** - 연결 시 비활성화 및 값 초기화 필수
+7. **실행 모드 무시** - manual/triggered 구분 필수
+8. **상태 표시 생략** - 성공/실패 상태를 2초간 표시 필수
+9. **출력 텍스트 무제한** - 3줄 이상 텍스트는 반드시 "..." 처리
+
+## 🔄 상태 관리 패턴
+```typescript
+// 실행 중
+setStatus('running');
+
+// 성공 완료
+setStatus('completed');
+updateNodeData(id, { 
+  triggerExecution: undefined,
+  outputData: { result }
+});
+
+// 다음 노드 실행 (triggered 모드에서만)
+if (mode === 'triggered') {
+  executeNextNodes(id, { result });
+}
+
+// 2초 후 대기 상태
+setTimeout(() => setStatus('waiting'), 2000);
+```
+
+## 🎨 UI 컴포넌트 패턴
+```jsx
+<BaseNode<NodeDataType>
+  id={id}
+  title="Node Title"
+  icon={<Icon size={16} stroke="white" />}
+  status={status}
+  selected={selected}
+  onExecute={executeNode}
+  data={data}
+  result={result}
+  description="Node description"
+>
+  <div onBlur={() => handleBlur('field', localValue)}>
+    <InputField
+      nodeId={id}
+      label="Field Label"
+      icon={<Icon size={12} />}
+      value={localValue}
+      placeholder="Placeholder..."
+      onChange={setLocalValue}
+      handleId="field"
+      disabled={isFieldConnected}
+    />
+  </div>
+
+  <OutputField
+    nodeId={id}
+    label="Output Label"
+    icon={<Icon size={12} />}
+    value={data.outputData?.field || ''}
+    handleId="field"
+  />
+</BaseNode>
 ```
 
 **NAMING CONVENTIONS (STRICT):**

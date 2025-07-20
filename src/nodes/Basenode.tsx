@@ -24,6 +24,14 @@ const statusText: Record<NodeStatus, string> = {
   failed: 'Failed'
 };
 
+// 🆕 텍스트 줄 수 제한 유틸리티 함수
+const truncateTextToLines = (text: string, maxLines?: number): string => {
+  if (!text || !maxLines) return text;
+  const lines = text.split('\n');
+  if (lines.length <= maxLines) return text;
+  return lines.slice(0, maxLines).join('\n') + '\n...';
+};
+
 export function InputField({
   label,
   icon,
@@ -34,10 +42,14 @@ export function InputField({
   handleId,
   nodeId,
   onChange,
-  disabled
+  disabled,
+  maxLines // 🆕 최대 줄 수 제한
 }: InputFieldProps) {
   const isConnected = handleId ? useHandleConnection(nodeId, handleId) : false;
   const isViewer = useViewer(); // 🎯 뷰어 모드 감지
+
+  // 🆕 표시할 값 (줄 수 제한 적용)
+  const displayValue = truncateTextToLines(value || '', maxLines);
 
   const handleChange = useCallback((newValue: string) => {
     if (disabled) return;
@@ -48,8 +60,8 @@ export function InputField({
 
   return (
     <div className="node-input-field">
-      {/* 🎯 핵심 수정: 뷰어에서만 Handle 제거 */}
-      {handleId && !isViewer && (
+      {/* 🎯 핵심 수정: 뷰어에서만 Handle 제거, handleId 안정성 확보 */}
+      {handleId && typeof handleId === 'string' && !isViewer && (
         <Handle
           type="target"
           position={Position.Left}
@@ -69,7 +81,7 @@ export function InputField({
         </div>
         {disabled ? (
           <div className="node-input-display-only">
-            {value || ''}
+            {displayValue}
           </div>
         ) : (
           type === 'textarea' ? (
@@ -100,21 +112,26 @@ export function OutputField({
   label,
   icon,
   value,
-  handleId
+  handleId,
+  maxLines // 🆕 최대 줄 수 제한
 }: {
   nodeId: string;
   label: string;
   icon?: React.ReactNode;
   value: string;
   handleId: string;
+  maxLines?: number; // 🆕 최대 줄 수 제한
 }) {
   const isConnected = useHandleConnection(nodeId, handleId);
   const isViewer = useViewer(); // 🎯 뷰어 모드 감지
 
+  // 🆕 표시할 값 (줄 수 제한 적용)
+  const displayValue = truncateTextToLines(value || '', maxLines);
+
   return (
     <div className="node-input-field">
-      {/* 🎯 핵심 수정: 뷰어에서만 Handle 제거 */}
-      {!isViewer && (
+      {/* 🎯 핵심 수정: 뷰어에서만 Handle 제거, handleId 안정성 확보 */}
+      {handleId && typeof handleId === 'string' && !isViewer && (
         <Handle
           type="source"
           position={Position.Right}
@@ -137,7 +154,7 @@ export function OutputField({
           {label}
         </div>
         <div className="node-input-display-only">
-          {value || ''}
+          {displayValue}
         </div>
       </div>
     </div>

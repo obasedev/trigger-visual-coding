@@ -10,15 +10,18 @@ pub mod qr_code_node;
 pub mod run_command_node;
 pub mod start_node;
 pub mod text_file_editor_node;
+pub mod text_merger_node;
 pub mod video_download_node;
 pub mod workflow_storage;
 // 함수들을 재export (자동 등록을 위해)
-pub use cli_ai_node::{cli_ai_node, update_cli_result}; // 🆕 CLI AI 노드 + 업데이트 함수
+pub use cli_ai_node::{cli_ai_node, update_cli_result, clear_conversation_history}; // 🆕 CLI AI 노드 + 업데이트 함수
 pub use chat_web_server_node::{
     chat_web_server_node,
     get_chat_server_info,   // 🆕 추가
     get_chat_server_status, // 🎯 기존
     send_to_mobile,         // 🎯 기존
+    send_to_mobile_with_type, // 🆕 추가
+    send_web_response,      // 🆕 웹페이지 응답 함수 추가
     stop_chat_server_node,  // 🎯 기존
     stop_chat_tunnel,       // 🆕 추가
 };
@@ -30,6 +33,7 @@ pub use qr_code_node::qr_code_node;
 pub use run_command_node::run_command_node;
 pub use start_node::start_node;
 pub use text_file_editor_node::text_file_editor_node;
+pub use text_merger_node::text_merger_node;
 pub use video_download_node::video_download_node;
 pub use workflow_storage::{load_workflow_from_desktop, save_workflow_to_desktop, load_specific_workflow};
 

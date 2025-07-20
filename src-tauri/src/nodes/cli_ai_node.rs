@@ -83,9 +83,9 @@ fn save_conversation(node_id: &str, user_input: &str, ai_response: &str, cli_com
         cli_result: cli_result.map(|s| s.to_string()),
     });
     
-    // 최근 7개만 유지
-    if history.len() > 7 {
-        history.remove(0);
+    // 최근 3개만 유지 (더 깔끔한 대화)
+    if history.len() > 3 {
+        history.drain(0..history.len()-3);
     }
     
     let file_path = get_conversation_file_path(node_id);
@@ -108,20 +108,9 @@ fn format_conversation_context(history: &[ConversationEntry]) -> String {
         return String::new();
     }
     
-    let mut context = String::from("=== RECENT CONVERSATION HISTORY ===\n");
-    for (i, entry) in history.iter().enumerate() {
-        context.push_str(&format!("#{}: User: {}\n", i + 1, entry.user_input));
-        context.push_str(&format!("#{}: AI: {}\n", i + 1, entry.ai_response));
-        if let Some(cli_command) = &entry.cli_command {
-            context.push_str(&format!("#{}: Generated Command: {}\n", i + 1, cli_command));
-        }
-        if let Some(cli_result) = &entry.cli_result {
-            context.push_str(&format!("#{}: CLI Result: {}\n", i + 1, cli_result));
-        }
-        context.push('\n');
-    }
-    context.push_str("=== END HISTORY ===\n\n");
-    context
+    // ✅ 대화 기록 컨텍스트 제거 - 반복 응답 방지
+    // 이전 대화를 AI에게 전달하지 않아서 새로운 응답을 생성하도록 함
+    String::new()
 }
 
 // 강화된 파일 시스템 탐색 함수들
@@ -334,6 +323,15 @@ pub async fn cli_ai_node(user_input: String, api_key: String, model: String, cli
     let node_id = node_id.unwrap_or_else(|| "default".to_string());
     println!("🧠 AI Node processing with Claude API: {} (node: {})", user_input, node_id);
 
+    // 입력값 검증
+    if user_input.trim().is_empty() {
+        return Err("NO_USER_INPUT".to_string());
+    }
+
+    if api_key.trim().is_empty() {
+        return Err("NO_API_KEY".to_string());
+    }
+
     // 강화된 파일 시스템 정보 수집
     let _current_dir_info = get_comprehensive_directory_info();
     let file_keywords = extract_intelligent_keywords(&user_input);
@@ -424,7 +422,7 @@ file_search_info);
 
     let request_body = json!({
         "model": model,
-        "max_tokens": 150,
+        "max_tokens": 1000,
         "system": system_prompt,
         "messages": [
             {
@@ -496,19 +494,41 @@ file_search_info);
     println!("🧠 Generated CLI command: {}", cli_command);
     println!("🧠 Full AI response: {}", full_response);
     
-    // 대화 기록 저장 (CLI 명령어와 결과 포함)
-    let ai_response_str = if explanation.is_empty() { full_response.to_string() } else { explanation.clone() };
-    let cli_command_opt = if cli_command.is_empty() { None } else { Some(cli_command.as_str()) };
-    save_conversation(&node_id, &user_input, &ai_response_str, cli_command_opt, cli_result.as_deref());
+    // ✅ 대화 기록 저장 비활성화 - 각 입력을 독립적으로 처리
+    // let ai_response_str = if explanation.is_empty() { full_response.to_string() } else { explanation.clone() };
+    // let cli_command_opt = if cli_command.is_empty() { None } else { Some(cli_command.as_str()) };
+    // save_conversation(&node_id, &user_input, &ai_response_str, cli_command_opt, cli_result.as_deref());
     
-    // JSON 형태로 반환 (프론트엔드에서 파싱할 수 있도록)
+    // JSON 형태로 반환 (FileCreator 패턴과 동일)
     let result = json!({
         "command": cli_command,
         "explanation": if explanation.is_empty() { full_response } else { &explanation },
-        "full_response": full_response
+        "full_response": full_response,
+        "user_input": user_input,
+        "model_used": model
     });
     
     Ok(result.to_string())
+}
+
+#[tauri::command]
+pub async fn clear_conversation_history(node_id: String) -> Result<String, String> {
+    let file_path = get_conversation_file_path(&node_id);
+    
+    if file_path.exists() {
+        match fs::remove_file(&file_path) {
+            Ok(_) => {
+                println!("🧹 Conversation history cleared for node {}", node_id);
+                Ok("Conversation history cleared".to_string())
+            }
+            Err(e) => {
+                println!("❌ Failed to clear conversation history: {}", e);
+                Err(format!("Failed to clear conversation history: {}", e))
+            }
+        }
+    } else {
+        Ok("No conversation history to clear".to_string())
+    }
 }
 
 #[tauri::command]
