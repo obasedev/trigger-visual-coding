@@ -20,9 +20,6 @@ import { Save, FolderOpen, Eye } from 'lucide-react';
 import Sidebar from './Sidebar';
 import { WorkflowProvider } from './WorkflowContext';
 import { getNodeManager } from './NodeManager';
-import { BaseNodeData, ViewerNodeItem } from './types';
-import { PluginManager } from './PluginManager';
-import PluginNode from './nodes/PluginNode'; // 🆕 PluginNode import 추가
 import './workspace.css';
 
 const nodeModules = import.meta.glob('./nodes/*Node.tsx', { eager: true });
@@ -30,15 +27,9 @@ const nodeModules = import.meta.glob('./nodes/*Node.tsx', { eager: true });
 // 기본 노드들
 const defaultNodes: Node[] = [
   {
-    id: '1',
-    type: 'startNode',
-    position: { x: 100, y: 100 },
-    data: {}
-  },
-  {
-    id: '2', 
+    id: '1', 
     type: 'fileCreatorNode',
-    position: { x: 400, y: 100 },
+    position: { x: 300, y: 200 },
     data: {
       filePath: '',
       fileName: '',
@@ -64,8 +55,8 @@ interface WorkspaceProps {
   edges: Edge[];
   onNodesChange: (nodes: Node[]) => void;
   onEdgesChange: (edges: Edge[]) => void;
-  viewerItems: ViewerNodeItem[];
-  onViewerItemsChange: (items: ViewerNodeItem[]) => void;
+  viewerItems: any[];
+  onViewerItemsChange: (items: any[]) => void;
   onGoToViewer: () => void;
   updateNodeData: (nodeId: string, newData: Partial<BaseNodeData>) => void;
   executeNextNodes: (nodeId: string) => void;
@@ -89,11 +80,8 @@ function Workspace({
   const [historyIndex, setHistoryIndex] = useState<number>(-1);
   
   // 플러그인 상태 추가
-  const [pluginNodes, setPluginNodes] = useState<any[]>([]);
-  const [pluginLoaded, setPluginLoaded] = useState(false);
   
   // 플러그인 노드 배열을 안정화 (React Flow 경고 방지)
-  const stablePluginNodes = useMemo(() => pluginNodes, [JSON.stringify(pluginNodes)]);
   
   const reactFlowInstance = useReactFlow();
   const nodeManager = getNodeManager();
@@ -139,113 +127,58 @@ function Workspace({
     }
   }, [viewerItems, onViewerItemsChange]);
 
-  // 플러그인 로드 useEffect
-  useEffect(() => {
-    const loadPlugins = async () => {
-      try {
-        console.log('🔌 Starting plugin system initialization...');
-        
-        const pluginManager = PluginManager.getInstance();
-        await pluginManager.scanAndLoadPlugins();
-        
-        const pluginConfigs = pluginManager.getPluginConfigs();
-        setPluginNodes(pluginConfigs);
-        
-        console.log(`🔌 Plugin system ready: ${pluginConfigs.length} plugins loaded`);
-        console.log('Plugin configs:', pluginConfigs);
-        
-        // 전역에 PluginManager 노출 (디버깅용)
-        (window as any).PluginManager = PluginManager;
-        
-      } catch (error) {
-        console.error('❌ Failed to initialize plugin system:', error);
-      }
-    };
-    
-    loadPlugins();
-  }, []);
 
-  // 앱 시작시 마지막 저장된 워크플로우 자동 로드 (플러그인 로드 완료 후)
+  // 앱 시작시 마지막 저장된 워크플로우 자동 로드
   useEffect(() => {
+    let hasLoaded = false;
+    
     const autoLoadLastWorkflow = async () => {
+      if (hasLoaded) return;
+      hasLoaded = true;
+      
       try {
         const store = await getAppStore();
         const lastSavedPath = await store.get<string>('lastSavedWorkflow');
         
         if (lastSavedPath) {
-          console.log(`🔄 마지막 저장된 워크플로우 자동 로드: ${lastSavedPath}`);
+          const workflowData = await invoke('load_specific_workflow', { 
+            filePath: lastSavedPath 
+          }) as string;
           
-          try {
-            const workflowData = await invoke('load_specific_workflow', { 
-              filePath: lastSavedPath 
-            }) as string;
+          if (workflowData?.trim()) {
+            const flow = JSON.parse(workflowData);
             
-            if (workflowData?.trim()) {
-              const flow = JSON.parse(workflowData);
+            if (Array.isArray(flow.nodes)) {
+              onNodesChange(flow.nodes);
+              nodeManager.syncWithNodes(flow.nodes);
               
-              if (Array.isArray(flow.nodes)) {
-                // 🔧 플러그인 노드 복원 로직 추가
-                const restoredNodes = flow.nodes.map((node: Node) => {
-                  if (node.type && node.type.startsWith('plugin:')) {
-                    const pluginId = node.type.replace('plugin:', '');
-                    const pluginManager = PluginManager.getInstance();
-                    const plugin = pluginManager.getPlugin(pluginId);
-                    
-                    if (plugin) {
-                      // 플러그인이 존재하면 pluginId 확인/복원
-                      return {
-                        ...node,
-                        data: {
-                          ...node.data,
-                          pluginId: pluginId
-                        }
-                      };
-                    } else {
-                      console.warn(`⚠️ 플러그인 노드 복원 실패: ${pluginId} (플러그인 미등록, pluginNodes:`, pluginNodes, ")");
-                      return node;
-                    }
-                  }
-                  return node;
-                });
-                
-                onNodesChange(restoredNodes);
-                nodeManager.syncWithNodes(restoredNodes);
-                
-                const loadedNodeIds = new Set(restoredNodes.map((node: Node) => node.id as string));
-                cleanupViewerItems(loadedNodeIds);
-              }
-              if (Array.isArray(flow.edges)) onEdgesChange(flow.edges);
-              if (flow.viewport) reactFlowInstance.setViewport(flow.viewport);
-              
-              if (Array.isArray(flow.viewerItems)) {
-                const currentNodeIds = new Set(flow.nodes?.map((node: Node) => node.id as string) || []);
-                const validViewerItems = flow.viewerItems.filter((item: any) => 
-                  currentNodeIds.has(item.nodeId)
-                );
-                onViewerItemsChange(validViewerItems);
-              } else {
-                onViewerItemsChange([]);
-              }
-              
-              console.log('✅ 마지막 워크플로우 자동 로드 완료');
+              const loadedNodeIds = new Set(flow.nodes.map((node: Node) => node.id as string));
+              cleanupViewerItems(loadedNodeIds);
             }
-          } catch (error) {
-            console.warn('⚠️ 마지막 저장된 파일을 찾을 수 없음:', error);
-            await store.delete('lastSavedWorkflow');
+            if (Array.isArray(flow.edges)) onEdgesChange(flow.edges);
+            if (flow.viewport) reactFlowInstance.setViewport(flow.viewport);
+            
+            if (Array.isArray(flow.viewerItems)) {
+              const currentNodeIds = new Set(flow.nodes?.map((node: Node) => node.id as string) || []);
+              const validViewerItems = flow.viewerItems.filter((item: any) => 
+                currentNodeIds.has(item.nodeId)
+              );
+              onViewerItemsChange(validViewerItems);
+            } else {
+              onViewerItemsChange([]);
+            }
           }
-        } else {
-          console.log('💭 저장된 워크플로우 없음 - 기본 노드로 시작');
         }
       } catch (error) {
-        console.error('❌ 자동 로드 실패:', error);
+        if (error.message?.includes('파일을 찾을 수 없음')) {
+          const store = await getAppStore();
+          await store.delete('lastSavedWorkflow');
+        }
       }
     };
 
-    // 플러그인들이 모두 로드된 후에만 워크플로우 복원 시도
-    if (pluginNodes.length > 0) {
-      autoLoadLastWorkflow();
-    }
-  }, [pluginNodes]);
+    autoLoadLastWorkflow();
+  }, []);
 
   // 데이터 파이프라인 동기화
   useEffect(() => {
@@ -485,74 +418,27 @@ function Workspace({
     return () => { window.removeEventListener('keydown', handleKeyDown); };
   }, [selectAllNodes, copySelectedNodes, pasteNodes, undo, redo]);
 
-  // 🆕 노드 타입들 동적 로딩 (플러그인 포함) - 최적화된 부분
+  // 노드 타입들 동적 로딩
   const nodeTypes = useMemo(() => {
-    const types: any = {};
+    const types = {};
     
-    // 기존 컴파일된 노드들
-    Object.entries(nodeModules).forEach(([path, module]: [string, any]) => {
+    // 컴파일된 노드들
+    Object.entries(nodeModules).forEach(([path, module]) => {
       const fileName = path.split('/').pop()?.replace('.tsx', '');
       if (fileName && module.default) {
         types[fileName.charAt(0).toLowerCase() + fileName.slice(1)] = module.default;
       }
     });
     
-    // 🎯 핵심 수정: 플러그인 노드들을 실제 PluginNode 컴포넌트로 연결
-    stablePluginNodes.forEach(pluginConfig => {
-      types[pluginConfig.type] = PluginNode;
-    });
-    
-    // 🔧 동적 플러그인 노드 매핑: 모든 plugin: 접두사를 가진 노드를 PluginNode로 연결
-    const proxyTypes = new Proxy(types, {
-      get(target, prop) {
-        if (typeof prop === 'string' && prop.startsWith('plugin:')) {
-          return PluginNode;
-        }
-        return target[prop];
-      }
-    });
-    
-    console.log('📋 Available node types:', Object.keys(types));
-    return proxyTypes;
-  }, [stablePluginNodes]); // 안정화된 플러그인 노드 배열 사용
+    return types;
+  }, []);
 
-  // 사이드바에서 노드 추가 (플러그인 지원)
-  const addNodeFromSidebar = useCallback((nodeType: string) => {
+  // 사이드바에서 노드 추가
+  const addNodeFromSidebar = useCallback((nodeType) => {
     saveToHistory();
     
-    // 플러그인 노드인지 확인
-    if (nodeType.startsWith('plugin:')) {
-      const pluginId = nodeType.replace('plugin:', '');
-      const pluginManager = PluginManager.getInstance();
-      const plugin = pluginManager.getPlugin(pluginId);
-      
-      if (plugin) {
-        // 🎯 플러그인 노드 데이터 초기화
-        const initialData: any = {
-          pluginId: pluginId,
-          // 입력 필드들 기본값 설정
-          ...plugin.manifest.inputs.reduce((acc, input) => {
-            acc[input.id] = '';
-            return acc;
-          }, {} as any)
-        };
-
-        const newNode: Node = {
-          id: nodeManager.generateNewId().toString(),
-          type: nodeType,
-          position: { x: Math.random() * 300 + 200, y: Math.random() * 300 + 150 },
-          data: initialData
-        };
-        
-        const updatedNodes = [...nodes, newNode];
-        onNodesChange(updatedNodes);
-        console.log(`🔌 Added plugin node: ${plugin.manifest.name}`);
-        return;
-      }
-    }
-    
-    // 기존 컴파일된 노드들 처리
-    const nodeConfig: any = Object.values(nodeModules).find(m => (m as any).config?.type === nodeType)?.config;
+    // 컴파일된 노드들 처리
+    const nodeConfig = Object.values(nodeModules).find(m => m.config?.type === nodeType)?.config;
     if (!nodeConfig) return;
     
     const defaultData: Record<string, any> = {};
@@ -725,8 +611,7 @@ function Workspace({
   return (
     <div style={{ width: '100vw', height: '100vh', display: 'flex' }}>
       <Sidebar 
-        onAddNode={addNodeFromSidebar} 
-        pluginNodes={pluginNodes}
+        onAddNode={addNodeFromSidebar}
       />
       <div style={{ flex: 1, position: 'relative' }}>
         

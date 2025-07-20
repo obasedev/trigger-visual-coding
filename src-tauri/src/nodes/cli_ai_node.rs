@@ -36,18 +36,6 @@ fn get_conversation_file_path(node_id: &str) -> PathBuf {
     path
 }
 
-fn ensure_store_directory() -> Result<(), std::io::Error> {
-    let mut store_path = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    // src-tauri 폴더에서 상위 디렉토리로 이동 (프로젝트 루트)
-    if store_path.file_name() == Some(std::ffi::OsStr::new("src-tauri")) {
-        store_path.pop();
-    }
-    store_path.push("store");
-    if !store_path.exists() {
-        fs::create_dir_all(&store_path)?;
-    }
-    Ok(())
-}
 
 fn get_conversation_history(node_id: &str) -> Vec<ConversationEntry> {
     let file_path = get_conversation_file_path(node_id);
@@ -67,41 +55,6 @@ fn get_conversation_history(node_id: &str) -> Vec<ConversationEntry> {
     }
 }
 
-fn save_conversation(node_id: &str, user_input: &str, ai_response: &str, cli_command: Option<&str>, cli_result: Option<&str>) {
-    if let Err(e) = ensure_store_directory() {
-        println!("❌ Failed to create store directory: {}", e);
-        return;
-    }
-    
-    let mut history = get_conversation_history(node_id);
-    
-    // 새 대화 추가
-    history.push(ConversationEntry {
-        user_input: user_input.to_string(),
-        ai_response: ai_response.to_string(),
-        cli_command: cli_command.map(|s| s.to_string()),
-        cli_result: cli_result.map(|s| s.to_string()),
-    });
-    
-    // 최근 3개만 유지 (더 깔끔한 대화)
-    if history.len() > 3 {
-        history.drain(0..history.len()-3);
-    }
-    
-    let file_path = get_conversation_file_path(node_id);
-    match serde_json::to_string_pretty(&history) {
-        Ok(json_content) => {
-            if let Err(e) = fs::write(&file_path, json_content) {
-                println!("❌ Failed to save conversation: {}", e);
-            } else {
-                println!("💾 Saved conversation for node {} to file: {} entries", node_id, history.len());
-            }
-        },
-        Err(e) => {
-            println!("❌ Failed to serialize conversation: {}", e);
-        }
-    }
-}
 
 fn format_conversation_context(history: &[ConversationEntry]) -> String {
     if history.is_empty() {

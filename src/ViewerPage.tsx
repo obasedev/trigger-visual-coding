@@ -1,23 +1,32 @@
-import React, { useMemo, useCallback, useState } from 'react';
+import React, { useMemo, useCallback, useState, createContext, useContext } from 'react';
 import { ArrowLeft, Eye, Trash2, RefreshCw, Edit3, Check, X } from 'lucide-react';
 import { Node } from '@xyflow/react';
-import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
+import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { WorkflowProvider } from './WorkflowContext';
-import { ViewerNodeItem } from './types';
 import './viewerpage.css';
+
+// 뷰어 모드 감지를 위한 Context
+const ViewerContext = createContext(false);
+
+export function ViewerProvider({ children, isViewer = false }) {
+  return (
+    <ViewerContext.Provider value={isViewer}>
+      {children}
+    </ViewerContext.Provider>
+  );
+}
+
+export function useViewer() {
+  return useContext(ViewerContext);
+}
+
+export function useIsWorkspace() {
+  return !useContext(ViewerContext);
+}
 
 // 노드 모듈들 import
 const nodeModules = import.meta.glob('./nodes/*Node.tsx', { eager: true });
 
-interface ViewerPageProps {
-  viewerItems: ViewerNodeItem[];
-  allNodes: Node[];
-  allEdges: any[];
-  onViewerItemsChange: (items: ViewerNodeItem[]) => void;
-  updateNodeData: (nodeId: string, newData: any) => void;
-  executeNextNodes: (nodeId: string) => void;
-  onBackToWorkspace: () => void;
-}
 
 function ViewerPage({
   viewerItems,
@@ -27,11 +36,11 @@ function ViewerPage({
   updateNodeData,
   executeNextNodes: executeNextNodesProp,
   onBackToWorkspace
-}: ViewerPageProps) {
+}) {
 
   // 🆕 라벨 편집 상태 관리
-  const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
-  const [editingLabel, setEditingLabel] = useState<string>('');
+  const [editingNodeId, setEditingNodeId] = useState(null);
+  const [editingLabel, setEditingLabel] = useState('');
 
   // 뷰어에 있는 노드들의 실제 데이터를 가져오기
   const viewerNodes = useMemo(() => {
@@ -40,12 +49,12 @@ function ViewerPage({
         const actualNode = allNodes.find(node => node.id === item.nodeId);
         return actualNode ? { ...actualNode, viewerItem: item } : null;
       })
-      .filter(Boolean) as (Node & { viewerItem: ViewerNodeItem })[];
+      .filter(Boolean);
   }, [viewerItems, allNodes]);
 
   // 노드 타입들을 동적으로 생성
   const nodeComponents = useMemo(() => {
-    const components: { [key: string]: React.ComponentType<any> } = {};
+    const components = {};
     Object.entries(nodeModules).forEach(([path, module]: [string, any]) => {
       const fileName = path.split('/').pop()?.replace('.tsx', '');
       if (fileName && module.default) {

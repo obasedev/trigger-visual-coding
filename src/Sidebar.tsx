@@ -15,35 +15,27 @@ import {
   Github,
   BookOpen,
   Youtube,
-  Plug // 🆕 플러그인 아이콘 추가
 } from 'lucide-react';
 import './sidebar.css';
 
-interface SidebarProps {
-  onAddNode: (nodeType: string) => void;
-  pluginNodes?: any[]; // 🆕 플러그인 노드 정보
-}
 
-interface NodeConfig {
-  type: string;
-  label: string;
-  color: string;
-  category: string;
-  settings?: any[];
-}
-
-function Sidebar({ onAddNode, pluginNodes = [] }: SidebarProps) {
-  const [nodeConfigs, setNodeConfigs] = useState<NodeConfig[]>([]);
-  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(
-    new Set(['Core', 'File', 'Plugins']) // 🆕 Plugins 카테고리도 기본 확장
+function Sidebar({ onAddNode }) {
+  const [nodeConfigs, setNodeConfigs] = useState([]);
+  const [expandedCategories, setExpandedCategories] = useState(
+    new Set(['Core', 'File'])
   );
   const [searchTerm, setSearchTerm] = useState('');
 
   // Load node configurations (기존 컴파일된 노드들)
   useEffect(() => {
+    let hasLoaded = false;
+    
     const loadNodeConfigs = async () => {
+      if (hasLoaded) return;
+      hasLoaded = true;
+      
       try {
-        const configs: NodeConfig[] = [];
+        const configs = [];
         const nodeModules = import.meta.glob('./nodes/*Node.tsx', { eager: true });
         
         for (const path in nodeModules) {
@@ -56,7 +48,6 @@ function Sidebar({ onAddNode, pluginNodes = [] }: SidebarProps) {
         }
         
         setNodeConfigs(configs);
-        console.log(`📋 Sidebar: ${configs.length} compiled nodes loaded`);
       } catch (error) {
         console.error('❌ Sidebar: Node loading failed:', error);
       }
@@ -65,16 +56,10 @@ function Sidebar({ onAddNode, pluginNodes = [] }: SidebarProps) {
     loadNodeConfigs();
   }, []);
 
-  // 🆕 플러그인 노드 변경 감지
-  useEffect(() => {
-    if (pluginNodes.length > 0) {
-      console.log(`🔌 Sidebar: ${pluginNodes.length} plugin nodes received:`, pluginNodes);
-    }
-  }, [pluginNodes]);
 
   // 🆕 Categorize nodes (컴파일된 노드 + 플러그인 노드)
   const categorizedNodes = useMemo(() => {
-    const categories: { [key: string]: NodeConfig[] } = {};
+    const categories = {};
     
     // 기존 컴파일된 노드들
     nodeConfigs.forEach(config => {
@@ -85,29 +70,15 @@ function Sidebar({ onAddNode, pluginNodes = [] }: SidebarProps) {
       categories[category].push(config);
     });
     
-    // 🆕 플러그인 노드들 추가
-    pluginNodes.forEach(pluginConfig => {
-      const category = pluginConfig.category || 'Plugins';
-      if (!categories[category]) {
-        categories[category] = [];
-      }
-      categories[category].push({
-        type: pluginConfig.type,
-        label: pluginConfig.label,
-        color: pluginConfig.color,
-        category: category,
-        settings: [] // 플러그인은 설정이 manifest에 있음
-      });
-    });
     
     return categories;
-  }, [nodeConfigs, pluginNodes]);
+  }, [nodeConfigs]);
 
   // Search filtering
   const filteredCategories = useMemo(() => {
     if (!searchTerm.trim()) return categorizedNodes;
     
-    const filtered: { [key: string]: NodeConfig[] } = {};
+    const filtered = {};
     Object.entries(categorizedNodes).forEach(([category, nodes]) => {
       const filteredNodes = nodes.filter(node =>
         node.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -145,27 +116,19 @@ function Sidebar({ onAddNode, pluginNodes = [] }: SidebarProps) {
       'Network': <Globe size={16} color="#ffffff" />,
       'Time': <Clock size={16} color="#ffffff" />,
       'Condition': <GitBranch size={16} color="#ffffff" />,
-      'Plugins': <Plug size={16} color="#ffffff" />, // 🆕 플러그인 아이콘
+      'Plugins': <Package size={16} color="#ffffff" />, // 🆕 플러그인 아이콘
       'Other': <Package size={16} color="#ffffff" />
     };
     return iconMap[category] || <Package size={16} color="#ffffff" />;
   };
 
-  // 🆕 노드 클릭 핸들러 (플러그인 로깅 추가)
-  const handleNodeClick = (node: NodeConfig) => {
-    const isPlugin = node.type.startsWith('plugin:');
-    
-    if (isPlugin) {
-      console.log(`🔌 Adding plugin node: ${node.label} (${node.type})`);
-    } else {
-      console.log(`📦 Adding compiled node: ${node.label} (${node.type})`);
-    }
-    
+  const handleNodeClick = (node) => {
+    console.log(`📦 Adding node: ${node.label} (${node.type})`);
     onAddNode(node.type);
   };
 
-  const openExternalLink = (url: string) => {
-    if ((window as any).__TAURI__) {
+  const openExternalLink = (url) => {
+    if (window.__TAURI__) {
       import('@tauri-apps/plugin-shell').then(({ open }) => {
         open(url);
       }).catch(console.error);
@@ -174,8 +137,8 @@ function Sidebar({ onAddNode, pluginNodes = [] }: SidebarProps) {
     }
   };
 
-  // 🆕 전체 노드 수 계산 (컴파일된 + 플러그인)
-  const totalNodeCount = nodeConfigs.length + pluginNodes.length;
+  // 전체 노드 수 계산
+  const totalNodeCount = nodeConfigs.length;
 
   return (
     <div className="sidebar-container">
@@ -216,7 +179,6 @@ function Sidebar({ onAddNode, pluginNodes = [] }: SidebarProps) {
       <div className="sidebar-categories">
         {Object.entries(filteredCategories).map(([category, nodes]) => {
           const isExpanded = expandedCategories.has(category);
-          const isPluginCategory = category === 'Plugins' || nodes.some(n => n.type.startsWith('plugin:'));
           
           return (
             <div key={category} className="sidebar-category">
@@ -224,7 +186,7 @@ function Sidebar({ onAddNode, pluginNodes = [] }: SidebarProps) {
               {/* Category header */}
               <div
                 onClick={() => toggleCategory(category)}
-                className={`sidebar-category-header ${isExpanded ? 'expanded' : ''} ${isPluginCategory ? 'plugin-category' : ''}`}
+                className={`sidebar-category-header ${isExpanded ? 'expanded' : ''}`}
               >
                 <div className="sidebar-category-info">
                   <div className="sidebar-category-icon">
@@ -232,10 +194,6 @@ function Sidebar({ onAddNode, pluginNodes = [] }: SidebarProps) {
                   </div>
                   <span className="sidebar-category-name">
                     {category}
-                    {/* 🆕 플러그인 카테고리 표시 */}
-                    {isPluginCategory && category !== 'Plugins' && (
-                      <span className="plugin-indicator"></span>
-                    )}
                   </span>
                   <span className="sidebar-category-count">
                     {nodes.length}
@@ -249,28 +207,20 @@ function Sidebar({ onAddNode, pluginNodes = [] }: SidebarProps) {
               {/* Node list */}
               {isExpanded && (
                 <div className="sidebar-nodes">
-                  {nodes.map((node) => {
-                    const isPlugin = node.type.startsWith('plugin:');
-                    
-                    return (
-                      <div
-                        key={node.type}
-                        onClick={() => handleNodeClick(node)}
-                        className={`sidebar-node ${isPlugin ? 'plugin-node' : 'compiled-node'}`}
-                        style={{ '--node-color': node.color } as React.CSSProperties}
-                        title={isPlugin ? `Plugin: ${node.label}` : `Compiled: ${node.label}`}
-                      >
-                        <div className="sidebar-node-indicator" />
-                        <span className="sidebar-node-label">
-                          {node.label}
-                        </span>
-                        {/* 🆕 플러그인 노드 표시 */}
-                        {isPlugin && (
-                          <span className="sidebar-node-plugin-icon"></span>
-                        )}
-                      </div>
-                    );
-                  })}
+                  {nodes.map((node) => (
+                    <div
+                      key={node.type}
+                      onClick={() => handleNodeClick(node)}
+                      className="sidebar-node compiled-node"
+                      style={{ '--node-color': node.color } as React.CSSProperties}
+                      title={`Node: ${node.label}`}
+                    >
+                      <div className="sidebar-node-indicator" />
+                      <span className="sidebar-node-label">
+                        {node.label}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
@@ -304,10 +254,6 @@ function Sidebar({ onAddNode, pluginNodes = [] }: SidebarProps) {
             <div className="sidebar-stat">
               <span className="sidebar-stat-label">Compiled:</span>
               <span className="sidebar-stat-value">{nodeConfigs.length}</span>
-            </div>
-            <div className="sidebar-stat">
-              <span className="sidebar-stat-label">Plugins:</span>
-              <span className="sidebar-stat-value">{pluginNodes.length}</span>
             </div>
           </div>
           

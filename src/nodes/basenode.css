@@ -50,12 +50,9 @@
   gap: 6px;
 }
 
-/* 🆕 뷰어 버튼 스타일 */
-.node-viewer-button {
+/* 공통 버튼 스타일 베이스 */
+.node-button-base {
   padding: 8px;
-  background-color: rgba(55, 55, 55, 0.15);
-  color: rgba(255, 255, 255, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: 6px;
   cursor: pointer;
   font-size: 13px;
@@ -66,6 +63,25 @@
   justify-content: center;
   width: 32px;
   height: 32px;
+  border: 1px solid;
+}
+
+/* 뷰어 버튼 스타일 */
+.node-viewer-button {
+  padding: 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background-color: rgba(55, 55, 55, 0.15);
+  color: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.3);
 }
 
 .node-viewer-button:hover {
@@ -85,7 +101,55 @@
   border-color: rgba(59, 130, 246, 0.8);
 }
 
-/* 실행 버튼 스타일 (기존과 동일하지만 버튼 그룹과 조화) */
+/* 개별 실행 버튼 스타일 */
+.node-manual-button {
+  padding: 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background-color: rgba(55, 55, 55, 0.15);
+  color: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.node-manual-button:hover {
+  background-color: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* 트리거 실행 버튼 스타일 */
+.node-trigger-button {
+  padding: 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background-color: rgba(55, 55, 55, 0.15);
+  color: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.node-trigger-button:hover {
+  background-color: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* 실행 버튼 스타일 (기존 - 제거 예정) */
 .node-execute-button {
   padding: 8px 16px;
   background-color: rgba(55, 55, 55, 0.15);
@@ -322,31 +386,6 @@
   color: #b7b7b7;
 }
 
-.node-textarea {
-  width: 100%;
-  padding: 12px 16px;
-  border: 1px solid #ffffff;
-  border-radius: 8px;
-  font-size: 13px;
-  font-family: inherit;
-  outline: none;
-  resize: none;
-  background-color: #1c1c21;
-  color: #cacaca;
-  min-height: 40px;
-  box-sizing: border-box;
-  transition: all 0.2s ease;
-}
-
-.node-textarea:focus {
-  border-color: #ffffff;
-  background-color: #27272a;
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
-}
-
-.node-textarea::placeholder {
-  color: #9ca3af;
-}
 
 .node-input-display-only {
   background-color: #1c1c21;

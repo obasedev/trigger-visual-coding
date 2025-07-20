@@ -1,17 +1,9 @@
 import React, { createContext, useContext, useMemo, useCallback } from 'react';
 import { Edge, Node } from '@xyflow/react';
 
-// 중앙 타입 정의 import
-import type { 
-  WorkflowContextType,
-  WorkflowProviderProps,
-  BaseNodeData,
-  ViewerNodeItem,
-  ViewerActions
-} from './types';
 
 // Context 생성 (기본값 정의)
-const WorkflowContext = createContext<WorkflowContextType | undefined>(undefined);
+const WorkflowContext = createContext(undefined);
 
 /**
  * WorkflowProvider (뷰어 기능 추가)
@@ -24,13 +16,13 @@ export function WorkflowProvider({
   edges, 
   updateNodeData,
   onExecuteNextNodes,
-  // 🆕 뷰어 관련 props
+  // 뷰어 관련 props
   viewerItems,
   onViewerItemsChange
-}: WorkflowProviderProps) {
+}) {
   
   // 🆕 뷰어 관련 함수들을 메모이제이션으로 최적화
-  const viewerActions: ViewerActions = useMemo(() => ({
+  const viewerActions = useMemo(() => ({
     
     // 뷰어에 노드 추가
     addToViewer: (nodeId: string, nodeType: string, nodeTitle: string) => {
@@ -41,7 +33,7 @@ export function WorkflowProvider({
         return;
       }
       
-      const newItem: ViewerNodeItem = {
+      const newItem = {
         nodeId,
         nodeType,
         nodeTitle,
@@ -72,7 +64,7 @@ export function WorkflowProvider({
     },
     
     // 뷰어 목록 반환
-    getViewerItems: (): ViewerNodeItem[] => {
+    getViewerItems: () => {
       return [...viewerItems]; // 복사본 반환으로 안전성 확보
     },
     
@@ -126,7 +118,7 @@ export function WorkflowProvider({
  * useWorkflow (Custom Hook) - 기존 기능 유지
  * 역할: 하위 컴포넌트에서 쉽게 WorkflowContext의 값들을 사용할 수 있게 합니다.
  */
-export function useWorkflow(): WorkflowContextType {
+export function useWorkflow() {
   const context = useContext(WorkflowContext);
   if (context === undefined) {
     throw new Error('useWorkflow must be used within a WorkflowProvider');
@@ -147,12 +139,7 @@ export function useViewer() {
  * 🆕 useViewerStatus (Custom Hook)
  * 역할: 특정 노드의 뷰어 상태만 확인하는 최적화된 훅
  */
-export function useViewerStatus(nodeId: string): {
-  isInViewer: boolean;
-  addToViewer: (nodeType: string, nodeTitle: string) => void;
-  removeFromViewer: () => void;
-  updateLabel: (customLabel: string) => void; // 🆕 라벨 업데이트 함수 추가
-} {
+export function useViewerStatus(nodeId) {
   const { viewerActions } = useWorkflow();
   
   // 해당 노드의 뷰어 상태를 메모이제이션
@@ -162,7 +149,7 @@ export function useViewerStatus(nodeId: string): {
   );
   
   // 노드별 뷰어 조작 함수를 메모이제이션
-  const addToViewer = useCallback((nodeType: string, nodeTitle: string) => {
+  const addToViewer = useCallback((nodeType, nodeTitle) => {
     viewerActions.addToViewer(nodeId, nodeType, nodeTitle);
   }, [viewerActions, nodeId]);
   
@@ -171,7 +158,7 @@ export function useViewerStatus(nodeId: string): {
   }, [viewerActions, nodeId]);
   
   // 🆕 라벨 업데이트 함수
-  const updateLabel = useCallback((customLabel: string) => {
+  const updateLabel = useCallback((customLabel) => {
     viewerActions.updateViewerLabel(nodeId, customLabel);
   }, [viewerActions, nodeId]);
   
@@ -192,7 +179,7 @@ export function useViewerStatus(nodeId: string): {
  * - 기존: 입력과 출력 핸들을 모두 체크하여 잘못된 비활성화 발생
  * - 수정: 입력 핸들(target)만 체크하여 정확한 비활성화 적용
  */
-export function useHandleConnection(nodeId: string, handleId: string): boolean {
+export function useHandleConnection(nodeId, handleId) {
   const { allEdges } = useWorkflow();
   
   return useMemo(() => 

@@ -14,7 +14,7 @@ class NodeManager {
   private activeTimers: Set<number> = new Set();
   
   constructor() {
-    console.log('🎯 NodeManager 초기화 (버그 수정 버전)');
+    // NodeManager 초기화
   }
 
   /**
@@ -32,17 +32,13 @@ class NodeManager {
       if (!this.usedIds.has(recycledIdStr)) {
         newId = recycledId;
         this.usedIds.add(recycledIdStr);
-        console.log(`♻️ ID 재활용: ${newId} (검증 완료)`);
         return newId;
-      } else {
-        console.log(`⚠️ ID ${recycledId} 재활용 건너뜀 (이미 사용 중)`);
       }
     }
     
     // 재활용 가능한 ID가 없으면 새로 생성
     newId = this.counter;
     this.counter++;
-    console.log(`🆕 새 ID 생성: ${newId}`);
     
     this.usedIds.add(newId.toString());
     return newId;
@@ -56,7 +52,6 @@ class NodeManager {
     
     // 🎯 핵심 수정: 이미 등록된 ID는 건너뛰기
     if (this.usedIds.has(idStr)) {
-      console.log(`⚠️ ID ${id}는 이미 등록됨 - 건너뛰기`);
       return;
     }
     
@@ -68,10 +63,7 @@ class NodeManager {
     // counter를 최대값+1로 업데이트
     if (id >= this.counter) {
       this.counter = id + 1;
-      console.log(`📈 Counter 업데이트: ${this.counter}`);
     }
-    
-    console.log(`📝 기존 ID 등록: ${id}`);
   }
 
   /**
@@ -80,7 +72,6 @@ class NodeManager {
   public registerExistingIds(ids: number[]): void {
     // 🎯 핵심 수정: 중복 제거 후 등록
     const uniqueIds = [...new Set(ids)].sort((a, b) => a - b);
-    console.log(`📝 ${uniqueIds.length}개 고유 ID 등록 중...`);
     
     uniqueIds.forEach(id => {
       this.registerExistingId(id);
@@ -93,7 +84,6 @@ class NodeManager {
    * 🔧 수정: 노드 배열과 NodeManager 상태 동기화 (완전 재설정)
    */
   public syncWithNodes(nodes: any[]): void {
-    console.log(`🔄 ${nodes.length}개 노드와 동기화 중...`);
     
     // 🎯 핵심 수정: 완전히 상태 초기화
     this.usedIds.clear();
@@ -114,7 +104,6 @@ class NodeManager {
       this.registerExistingIds(currentNodeIds);
     }
     
-    console.log(`✅ 동기화 완료: ${currentNodeIds.length}개 ID 등록`);
   }
 
   /**
@@ -138,14 +127,12 @@ class NodeManager {
     this.usedIds.delete(idStr);
     this.recycledIds.push(idStr);
     
-    console.log(`🗑️ ID 반납: ${idStr} (재활용 풀: ${this.recycledIds.length}개)`);
   }
 
   /**
    * 🔧 수정: 여러 ID들을 한번에 반납 (중복 방지)
    */
   public releaseIds(ids: (string | number)[]): void {
-    console.log(`🗑️ ${ids.length}개 ID 반납 중...`);
     
     ids.forEach(id => {
       this.releaseId(id);
@@ -177,14 +164,12 @@ class NodeManager {
    * 모든 타이머 정리 (앱 종료시 호출)
    */
   public clearAllTimers(): void {
-    console.log(`🧹 ${this.activeTimers.size}개 타이머 정리 중...`);
     
     this.activeTimers.forEach(timerId => {
       clearTimeout(timerId);
     });
     this.activeTimers.clear();
     
-    console.log('✅ 모든 타이머 정리 완료');
   }
 
   /**
@@ -198,7 +183,6 @@ class NodeManager {
     
     const afterSize = this.recycledIds.length;
     if (beforeSize !== afterSize) {
-      console.log(`🧹 재활용 풀 정리: ${beforeSize} → ${afterSize}개`);
     }
   }
 
@@ -231,7 +215,6 @@ class NodeManager {
    */
   public debugStatus(): void {
     const status = this.getStatus();
-    console.log('📊 NodeManager 상태:', status);
   }
 }
 

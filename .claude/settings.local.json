@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npm run tauri-dev:*)"
+      "Bash(npm run tauri-dev:*)",
+      "Bash(rm:*)",
+      "Bash(cargo check:*)"
     ],
     "deny": []
   }

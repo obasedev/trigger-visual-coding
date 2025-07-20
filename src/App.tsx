@@ -2,11 +2,9 @@ import React, { useState, useCallback } from 'react';
 import { ReactFlowProvider } from '@xyflow/react';
 import Workspace from './Workspace';
 import ViewerPage from './ViewerPage';
-import WorkflowEngine from './WorkflowEngine';
-import { ViewerProvider } from './ViewerContext';
-import { ViewerNodeItem } from './types';
+import { WorkflowProvider } from './WorkflowContext';
+import { ViewerProvider } from './ViewerPage';
 import { Node, Edge } from '@xyflow/react';
-import { BaseNodeData } from './types';
 import './App.css';
 
 /**
@@ -16,20 +14,13 @@ import './App.css';
  * - Handle ID 충돌 완전 해결!
  */
 
-type AppPage = 'workspace' | 'viewer';
 
 // 기본 노드들
-const defaultNodes: Node[] = [
+const defaultNodes = [
   {
-    id: '1',
-    type: 'startNode',
-    position: { x: 100, y: 100 },
-    data: {}
-  },
-  {
-    id: '2', 
+    id: '1', 
     type: 'fileCreatorNode',
-    position: { x: 400, y: 100 },
+    position: { x: 300, y: 200 },
     data: {
       filePath: '',
       fileName: '',
@@ -40,12 +31,12 @@ const defaultNodes: Node[] = [
 
 function App() {
   // 현재 페이지 상태
-  const [currentPage, setCurrentPage] = useState<AppPage>('workspace');
+  const [currentPage, setCurrentPage] = useState('workspace');
   
   // 🔄 중앙화된 상태 관리 - 워크스페이스와 뷰어가 공유
-  const [nodes, setNodes] = useState<Node[]>(defaultNodes);
-  const [edges, setEdges] = useState<Edge[]>([]);
-  const [viewerItems, setViewerItems] = useState<ViewerNodeItem[]>([]);
+  const [nodes, setNodes] = useState(defaultNodes);
+  const [edges, setEdges] = useState([]);
+  const [viewerItems, setViewerItems] = useState([]);
 
   // 페이지 전환 함수들
   const goToViewer = useCallback(() => {
@@ -57,7 +48,7 @@ function App() {
   }, []);
 
   // 🔄 노드 데이터 업데이트 함수 (중앙 관리)
-  const updateNodeData = useCallback((nodeId: string, newData: Partial<BaseNodeData>) => {
+  const updateNodeData = useCallback((nodeId: string, newData: any) => {
     setNodes(currentNodes =>
       currentNodes.map(node => {
         if (node.id === nodeId) {
@@ -69,8 +60,38 @@ function App() {
     );
   }, []);
 
-  // 🚀 다음 노드들 실행 함수 (중앙 관리)
-  const executeNextNodes = useCallback((completedNodeId: string) => {
+  // 🔄 데이터 전달 함수 (아웃풋 데이터를 연결된 노드들에게 전달)
+  const sendDataToNextNodes = useCallback((completedNodeId: string, outputData: any) => {
+    // 데이터 연결만 찾기 (trigger-output 제외)
+    const dataConnections = edges.filter(edge => 
+      edge.source === completedNodeId && edge.sourceHandle !== 'trigger-output'
+    );
+    
+    if (dataConnections.length === 0) return;
+    
+    // 연결된 노드들에게 데이터 전달
+    setNodes(currentNodes => 
+      currentNodes.map(node => {
+        const incomingConnections = dataConnections.filter(edge => edge.target === node.id);
+        if (incomingConnections.length === 0) return node;
+        
+        // 해당 노드의 입력 필드들에 데이터 설정
+        const updatedData = { ...node.data };
+        incomingConnections.forEach(edge => {
+          const sourceField = edge.sourceHandle;
+          const targetField = edge.targetHandle;
+          if (outputData && outputData[sourceField]) {
+            updatedData[targetField] = outputData[sourceField];
+          }
+        });
+        
+        return { ...node, data: updatedData };
+      })
+    );
+  }, [edges]);
+
+  // 🚀 트리거 전달 함수 (트리거만 전달)
+  const triggerNextNodes = useCallback((completedNodeId: string) => {
     const nextNodeIds: string[] = edges
       .filter(edge => edge.source === completedNodeId && edge.sourceHandle === 'trigger-output')
       .map(edge => edge.target);
@@ -87,18 +108,31 @@ function App() {
     );
   }, [edges]);
 
+  // 🎯 통합 실행 함수 (기존 호환성 유지)
+  const executeNextNodes = useCallback((completedNodeId: string, outputData?: any) => {
+    // 1단계: 데이터 먼저 전달
+    if (outputData) {
+      sendDataToNextNodes(completedNodeId, outputData);
+    }
+    
+    // 2단계: 잠시 후 트리거 전달 (데이터 전달이 완료된 후)
+    setTimeout(() => {
+      triggerNextNodes(completedNodeId);
+    }, 20); // 20ms 지연으로 데이터 전달 완료 보장
+  }, [sendDataToNextNodes, triggerNextNodes]);
+
   // 뷰어 아이템 변경 핸들러
-  const handleViewerItemsChange = useCallback((newItems: ViewerNodeItem[]) => {
+  const handleViewerItemsChange = useCallback((newItems) => {
     setViewerItems(newItems);
   }, []);
 
   // 노드 변경 핸들러
-  const handleNodesChange = useCallback((newNodes: Node[]) => {
+  const handleNodesChange = useCallback((newNodes) => {
     setNodes(newNodes);
   }, []);
 
   // 엣지 변경 핸들러
-  const handleEdgesChange = useCallback((newEdges: Edge[]) => {
+  const handleEdgesChange = useCallback((newEdges) => {
     setEdges(newEdges);
   }, []);
 
@@ -114,11 +148,11 @@ function App() {
       }}>
         <ReactFlowProvider>
           <ViewerProvider isViewer={false}>
-            <WorkflowEngine
+            <WorkflowProvider
               nodes={nodes}
               edges={edges}
               updateNodeData={updateNodeData}
-              executeNextNodes={executeNextNodes}
+              onExecuteNextNodes={executeNextNodes}
               viewerItems={viewerItems}
               onViewerItemsChange={handleViewerItemsChange}
             >
@@ -133,7 +167,7 @@ function App() {
                 updateNodeData={updateNodeData}
                 executeNextNodes={executeNextNodes}
               />
-            </WorkflowEngine>
+            </WorkflowProvider>
           </ViewerProvider>
         </ReactFlowProvider>
       </div>
@@ -146,11 +180,11 @@ function App() {
       }}>
         <ReactFlowProvider>
           <ViewerProvider isViewer={true}>
-            <WorkflowEngine
+            <WorkflowProvider
               nodes={nodes}
               edges={edges}
               updateNodeData={updateNodeData}
-              executeNextNodes={executeNextNodes}
+              onExecuteNextNodes={executeNextNodes}
               viewerItems={viewerItems}
               onViewerItemsChange={handleViewerItemsChange}
             >
@@ -163,7 +197,7 @@ function App() {
                 executeNextNodes={executeNextNodes}
                 onBackToWorkspace={goToWorkspace}
               />
-            </WorkflowEngine>
+            </WorkflowProvider>
           </ViewerProvider>
         </ReactFlowProvider>
       </div>

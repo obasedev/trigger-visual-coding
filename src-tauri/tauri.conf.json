@@ -36,8 +36,7 @@
     ],
     "resources": [
       "binaries/yt-dlp.exe",
-      "binaries/ffmpeg.exe",
-      "plugins"
+      "binaries/ffmpeg.exe"
     ],
     "externalBin": [
       "binaries/cloudflared"

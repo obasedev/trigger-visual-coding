@@ -1,36 +1,19 @@
 import React, { useCallback } from 'react';
 import { Handle, Position } from '@xyflow/react';
-import { Play, Eye, EyeOff } from 'lucide-react';
+import { Play, Eye, EyeOff, Zap } from 'lucide-react';
 import './basenode.css';
 
-import type {
-  BaseNodeProps,
-  InputFieldProps,
-  NodeStatus,
-  InfoRow,
-  BaseNodeData,
-  NodeDataOutput,
-  ExecutionMode,
-  CustomButton
-} from '../types';
 
 import { useWorkflow, useHandleConnection } from '../WorkflowContext';
-import { useViewer } from '../ViewerContext'; // 🆕 뷰어 감지 Hook
+import { useViewer } from '../ViewerPage';
 
-const statusText: Record<NodeStatus, string> = {
+const statusText = {
   waiting: 'Ready',
   running: 'Running...',
   completed: 'Completed',
   failed: 'Failed'
 };
 
-// 🆕 텍스트 줄 수 제한 유틸리티 함수
-const truncateTextToLines = (text: string, maxLines?: number): string => {
-  if (!text || !maxLines) return text;
-  const lines = text.split('\n');
-  if (lines.length <= maxLines) return text;
-  return lines.slice(0, maxLines).join('\n') + '\n...';
-};
 
 export function InputField({
   label,
@@ -42,14 +25,10 @@ export function InputField({
   handleId,
   nodeId,
   onChange,
-  disabled,
-  maxLines // 🆕 최대 줄 수 제한
-}: InputFieldProps) {
+  disabled
+}) {
   const isConnected = handleId ? useHandleConnection(nodeId, handleId) : false;
-  const isViewer = useViewer(); // 🎯 뷰어 모드 감지
-
-  // 🆕 표시할 값 (줄 수 제한 적용)
-  const displayValue = truncateTextToLines(value || '', maxLines);
+  const isViewer = useViewer();
 
   const handleChange = useCallback((newValue: string) => {
     if (disabled) return;
@@ -60,17 +39,14 @@ export function InputField({
 
   return (
     <div className="node-input-field">
-      {/* 🎯 핵심 수정: 뷰어에서만 Handle 제거, handleId 안정성 확보 */}
-      {handleId && typeof handleId === 'string' && !isViewer && (
+      {handleId && !isViewer && (
         <Handle
           type="target"
           position={Position.Left}
           id={handleId}
           style={{
             backgroundColor: isConnected ? '#6366f1' : '#777777',
-            width: '10px', height: '10px', left: '12px', border: '2px solid white',
-            boxShadow: isConnected ? '0 2px 6px rgba(255, 193, 7, 0.3)' : '0 1px 3px rgba(0,0,0,0.3)',
-            transition: 'all 0.2s ease', zIndex: 10
+            width: '10px', height: '10px', left: '12px', border: '2px solid white'
           }}
         />
       )}
@@ -81,26 +57,24 @@ export function InputField({
         </div>
         {disabled ? (
           <div className="node-input-display-only">
-            {displayValue}
+            {(() => {
+              const text = value || '';
+              const lines = text.split('\n');
+              if (lines.length > 3) {
+                return lines.slice(0, 3).join('\n') + '\n...';
+              }
+              return text;
+            })()}
           </div>
         ) : (
-          type === 'textarea' ? (
-            <textarea
-              value={value || ''}
-              onChange={(e) => handleChange(e.target.value)}
-              placeholder={placeholder}
-              rows={rows}
-              className="node-textarea"
-            />
-          ) : (
-            <input
-              type="text"
-              value={value || ''}
-              onChange={(e) => handleChange(e.target.value)}
-              placeholder={placeholder}
-              className="node-input"
-            />
-          )
+          <textarea
+            value={value || ''}
+            onChange={(e) => handleChange(e.target.value)}
+            placeholder={placeholder}
+            rows={1}
+            className="node-input"
+            style={{ resize: 'none' }}
+          />
         )}
       </div>
     </div>
@@ -112,26 +86,20 @@ export function OutputField({
   label,
   icon,
   value,
-  handleId,
-  maxLines // 🆕 최대 줄 수 제한
+  handleId
 }: {
   nodeId: string;
   label: string;
   icon?: React.ReactNode;
   value: string;
   handleId: string;
-  maxLines?: number; // 🆕 최대 줄 수 제한
 }) {
   const isConnected = useHandleConnection(nodeId, handleId);
-  const isViewer = useViewer(); // 🎯 뷰어 모드 감지
-
-  // 🆕 표시할 값 (줄 수 제한 적용)
-  const displayValue = truncateTextToLines(value || '', maxLines);
+  const isViewer = useViewer();
 
   return (
     <div className="node-input-field">
-      {/* 🎯 핵심 수정: 뷰어에서만 Handle 제거, handleId 안정성 확보 */}
-      {handleId && typeof handleId === 'string' && !isViewer && (
+      {handleId && !isViewer && (
         <Handle
           type="source"
           position={Position.Right}
@@ -141,10 +109,7 @@ export function OutputField({
             width: '10px',
             height: '10px',
             right: '12px',
-            border: '2px solid white',
-            boxShadow: isConnected ? '0 2px 6px rgba(255, 193, 7, 0.3)' : '0 1px 3px rgba(0,0,0,0.3)',
-            transition: 'all 0.2s ease',
-            zIndex: 10
+            border: '2px solid white'
           }}
         />
       )}
@@ -154,7 +119,14 @@ export function OutputField({
           {label}
         </div>
         <div className="node-input-display-only">
-          {displayValue}
+          {(() => {
+            const text = value || '';
+            const lines = text.split('\n');
+            if (lines.length > 3) {
+              return lines.slice(0, 3).join('\n') + '\n...';
+            }
+            return text;
+          })()}
         </div>
       </div>
     </div>
@@ -172,107 +144,57 @@ function BaseNode<T extends BaseNodeData = BaseNodeData>({
   hasInput = true,
   hasOutput = true,
   description,
-  infoRows,
-  result,
   data,
-  dataOutputs,
-  // 🆕 뷰어 관련 props
+  // 미상의 대체에드: 뷰어 관련
   onAddToViewer,
   onRemoveFromViewer,
-  isInViewer = false,
-  // 🆕 커스텀 실행 버튼 아이콘
-  customExecuteIcon,
-  // 🆕 커스텀 버튼들
-  customButtons
-}: BaseNodeProps<T>) {
+  isInViewer = false
+}: Omit<BaseNodeProps<T>, 'infoRows' | 'result' | 'dataOutputs' | 'customExecuteIcon' | 'customButtons'>) {
 
-  // 🆕 Context에서 뷰어 기능 가져오기 (props가 없을 때 fallback)
   const { viewerActions } = useWorkflow();
-  const isViewer = useViewer(); // 🎯 뷰어 모드 감지
+  const isViewer = useViewer();
 
-  const handleExecute = React.useCallback(() => {
-    try {
-      onExecute('manual'); // 수동 실행 모드로 전달
-    } catch (error) {
-      console.error('❌ BaseNode: Execute error:', error);
-    }
+  const handleManualExecute = React.useCallback(() => {
+    onExecute('manual');
   }, [onExecute]);
 
-  // 🆕 뷰어 버튼 클릭 핸들러 (Context 연동)
+  const handleTriggerExecute = React.useCallback(() => {
+    onExecute('triggered');
+  }, [onExecute]);
+
   const handleViewerToggle = React.useCallback(() => {
-    try {
-      const currentIsInViewer = isInViewer || viewerActions.isInViewer(id);
-      
-      if (currentIsInViewer) {
-        if (onRemoveFromViewer) {
-          onRemoveFromViewer();
-        } else {
-          viewerActions.removeFromViewer(id);
-        }
-        console.log(`👁️ Node ${id} removed from viewer`);
+    const currentIsInViewer = isInViewer || viewerActions.isInViewer(id);
+    
+    if (currentIsInViewer) {
+      if (onRemoveFromViewer) {
+        onRemoveFromViewer();
       } else {
-        if (onAddToViewer) {
-          onAddToViewer();
-        } else {
-          viewerActions.addToViewer(id, 'unknown', title);
-        }
-        console.log(`👁️ Node ${id} added to viewer`);
+        viewerActions.removeFromViewer(id);
       }
-    } catch (error) {
-      console.error('❌ BaseNode: Viewer toggle error:', error);
+    } else {
+      if (onAddToViewer) {
+        onAddToViewer();
+      } else {
+        viewerActions.addToViewer(id, 'unknown', title);
+      }
     }
   }, [id, isInViewer, onAddToViewer, onRemoveFromViewer, viewerActions, title]);
 
-  // 현재 뷰어 상태 계산
   const currentIsInViewer = isInViewer || viewerActions.isInViewer(id);
-
-  // 동적 헤더 메시지 생성 함수
-  const getHeaderMessage = () => {
-    // 실행 결과가 있으면 결과 메시지 표시
-    if (result) {
-      // 결과 메시지가 너무 길면 축약
-      if (result.length > 60) {
-        return result.substring(0, 57) + '...';
-      }
-      return result;
-    }
-    
-    // 상태별 메시지
-    switch (status) {
-      case 'running':
-        return 'Executing...';
-      case 'completed':
-        return 'Execution completed';
-      case 'failed':
-        return 'Execution failed';
-      case 'waiting':
-      default:
-        // 평소에는 노드 설명 표시
-        return description || 'Ready to execute';
-    }
-  };
-
-  // 헤더 메시지 색상 클래스
-  const getHeaderMessageClass = () => {
-    if (!result) return '';
-    return status;
-  };
 
   return (
     <div className={`base-node ${selected ? 'selected' : ''}`}>
       
-      {/* 1. 통합 헤더 영역 (상하 분할) */}
+      {/* 헤더 */}
       <div className="node-header">
-        {/* 헤더 상단: 아이콘 + 이름 + 버튼들 */}
         <div className="header-top">
           <div className="node-title-section">
             {icon}
             <span className="node-title">{title}</span>
           </div>
           
-          {/* 🆕 버튼 그룹: 뷰어 버튼 + 커스텀 버튼들 + 실행 버튼 */}
           <div className="node-button-group">
-            {/* 뷰어 버튼 - 뷰어에서는 숨김 */}
+            {/* 뷰어 버튼 */}
             {!isViewer && (
               <button 
                 onClick={handleViewerToggle} 
@@ -283,34 +205,28 @@ function BaseNode<T extends BaseNodeData = BaseNodeData>({
               </button>
             )}
             
-            {/* 🆕 커스텀 버튼들 */}
-            {customButtons && customButtons.map((button, index) => (
-              <button
-                key={index}
-                onClick={button.onClick}
-                className={`node-custom-button ${button.variant || 'default'}`}
-                title={button.title || ''}
-              >
-                {button.icon}
-              </button>
-            ))}
+            {/* 개별 실행 버튼 (얇게) */}
+            <button onClick={handleManualExecute} className="node-manual-button" title="Manual Execute">
+              <Play size={12} />
+            </button>
             
-            {/* 실행 버튼 - 🆕 커스텀 아이콘 지원 */}
-            <button onClick={handleExecute} className="node-execute-button">
-              {customExecuteIcon || <Play size={12} />}
+            {/* 트리거 실행 버튼 (메인) */}
+            <button onClick={handleTriggerExecute} className="node-trigger-button" title="Trigger Execute">
+              <Zap size={12} />
             </button>
           </div>
         </div>
         
-        {/* 헤더 하단: 동적 설명/결과 */}
-        <div className={`header-bottom ${getHeaderMessageClass()}`}>
-          {getHeaderMessage()}
-        </div>
+        {/* 설명 */}
+        {description && (
+          <div className="header-bottom">
+            {description}
+          </div>
+        )}
       </div>
 
-      {/* 2. 단순화된 상태 영역 (트리거만) */}
+      {/* 상태 및 트리거 핸들 */}
       <div className="node-status-section">
-        {/* 🎯 핵심 수정: 뷰어에서만 트리거 Handle 제거 */}
         {hasInput && !isViewer && (
           <Handle
             type="target"
@@ -318,7 +234,7 @@ function BaseNode<T extends BaseNodeData = BaseNodeData>({
             id="trigger-input"
             style={{
               backgroundColor: '#4CAF50', width: '12px', height: '12px', left: '12px',
-              border: '2px solid white', boxShadow: '0 2px 6px rgba(76, 175, 80, 0.3)', zIndex: 10
+              border: '2px solid white'
             }}
           />
         )}
@@ -330,12 +246,11 @@ function BaseNode<T extends BaseNodeData = BaseNodeData>({
             id="trigger-output"
             style={{
               backgroundColor: '#4CAF50', width: '12px', height: '12px', right: '12px',
-              border: '2px solid white', boxShadow: '0 2px 6px rgba(76, 175, 80, 0.3)', zIndex: 10
+              border: '2px solid white'
             }}
           />
         )}
 
-        {/* 트리거 상태만 */}
         <div className="status-top">
           <div className={`node-status ${status}`}>
             {status === 'running' && <div className="spinner" />}
@@ -344,64 +259,9 @@ function BaseNode<T extends BaseNodeData = BaseNodeData>({
         </div>
       </div>
 
-      {/* 3. 메인 콘텐츠 영역 */}
+      {/* 메인 콘텐츠 */}
       <div className="node-main-content">
-        <div className="node-main-column">
-          {/* Info rows 표시 */}
-          {infoRows && infoRows.length > 0 && (
-            <div className="node-info-section">
-              <div className="node-info-grid">
-                {infoRows.map((row, index) => (
-                  <div key={index} className="node-info-row">
-                    <div className="node-info-label">{row.icon}{row.label}</div>
-                    <div className={`node-info-value ${row.monospace ? 'monospace' : ''}`}>{row.value}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          
-          {/* 입력/출력 필드들 */}
-          {children}
-        </div>
-
-        {/* 데이터 출력 영역 */}
-        <div className="node-output-column">
-          {dataOutputs && dataOutputs.length > 0 && (
-            <div className="node-data-output-section-grid">
-              {dataOutputs.map((output) => (
-                <div key={output.id} className="node-output-field">
-                  <div className="node-output-content">
-                    <div className="node-output-label">
-                      {output.id === 'status' && output.value}
-                      {output.label}
-                    </div>
-                    <div className="node-output-display-only">
-                      {output.value && typeof output.value !== 'object'
-                        ? output.value.length > 15
-                          ? output.value.substring(0, 15) + '...'
-                          : output.value
-                        : output.value}
-                    </div>
-                  </div>
-                  {/* 🎯 핵심 수정: 뷰어에서만 데이터 출력 Handle 제거 */}
-                  {output.id !== 'status' && !isViewer && (
-                    <Handle
-                      type="source"
-                      position={Position.Right}
-                      id={output.id}
-                      style={{
-                        backgroundColor: '#6366f1', width: '10px', height: '10px',
-                        border: '2px solid white', boxShadow: '0 2px 6px rgba(255, 193, 7, 0.3)',
-                        position: 'absolute', right: '-8px', top: '50%', transform: 'translateY(-50%)'
-                      }}
-                    />
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        {children}
       </div>
     </div>
   );
